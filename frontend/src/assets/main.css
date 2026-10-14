@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+
+/* Paleta institucional: azul noche (marca), oro (acento) y marfil (fondos). Rojo/ámbar/verde solo para estados. */
+@theme {
+  --font-display: 'Playfair Display', Georgia, serif;
+
+  --color-marca-50: #f3f5fb;
+  --color-marca-100: #e4e8f5;
+  --color-marca-200: #c8d0ea;
+  --color-marca-300: #9aa8d4;
+  --color-marca-400: #6a7db8;
+  --color-marca-500: #44579a;
+  --color-marca-600: #2f4180;
+  --color-marca-700: #20306a;
+  --color-marca-800: #15214f;
+  --color-marca-900: #0d1638;
+  --color-marca-950: #080e26;
+
+  --color-oro-50: #fdf9ec;
+  --color-oro-100: #faf0cf;
+  --color-oro-200: #f4de9b;
+  --color-oro-300: #ecc862;
+  --color-oro-400: #e2b13b;
+  --color-oro-500: #c99a2e;
+  --color-oro-600: #a87b22;
+  --color-oro-700: #84601e;
+
+  --color-marfil: #fbf9f4;
+}
+
+body {
+  @apply bg-marfil text-slate-800 antialiased;
+}

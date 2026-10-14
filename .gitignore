@@ -1,0 +1,5 @@
+# Raíz del monorepo: cada subproyecto tiene su propio .gitignore
+.DS_Store
+Thumbs.db
+.idea/
+.vite/
