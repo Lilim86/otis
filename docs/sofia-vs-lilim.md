@@ -46,3 +46,11 @@ Pantalla `Reportes` (`/reportes`) y API `GET /api/reportes/combinados[/{clave}]`
 Cada reporte une su módulo con las tablas relacionadas y con la ubicación completa (país → vía de acceso, deducida desde el nivel más bajo que tenga el registro).
 Lo ve quien tenga `modulo.ver` de alguno de los módulos del reporte, así cada rol ve solo los suyos.
 Claves: ubicaciones, empresas, edificios, contratos, personas, equipos, mantenimientos, ordenes_mantenimiento, emergencias, kardex, inventario_almacen, movimientos, compras, cobranzas, cuotas_pendientes, cuentas_bancarias, personal, agenda.
+
+## Portal del cliente, comprobantes y avisos
+
+- **Portal del cliente** (`/portal` en Vue, `/api/portal/*`): inicio, mantenimiento (historial, reportar falla, calificar, firmar conformidad, informe PDF), cronograma (cada 30 días hábiles), pagos por transferencia (con foto o PDF del comprobante) y contratos y equipos.
+- **Pagos de clientes** (`/api/pagos-clientes`): Financiero confirma (nace la cobranza, avanza la cuota, se avisa al cliente) o rechaza con motivo.
+- **Facturas y recibos** (`/api/comprobantes/...`): modelo de diseño, PDF por cobranza y envío por correo con bitácora (`envios_comprobante`). La factura es un **modelo sin validez tributaria**.
+- **Ruta del técnico** (`/api/tecnico/ruta`): sus visitas, y cerrar cada una con su informe.
+- **Avisos automáticos**: `php artisan avisos:clientes` (programado a las 08:00; requiere `php artisan schedule:work` o el cron de Laravel).

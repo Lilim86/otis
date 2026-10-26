@@ -22,7 +22,7 @@ class PermisosSeeder extends Seeder
             ->filter(fn ($ruta) => in_array('permiso', $ruta->gatherMiddleware(), true))
             ->flatMap(fn ($ruta) => collect($ruta->methods())->reject(fn ($m) => $m === 'HEAD')->map(
                 fn ($metodo) => VerificaPermiso::permisoDe(Request::create('/'.$ruta->uri(), $metodo))
-            ))->push('seguridad.administrar')->unique()->sort()->values();
+            ))->push('seguridad.administrar', 'portal.usar')->unique()->sort()->values();
 
         foreach ($nombres as $nombre) {
             Permission::firstOrCreate(['name' => $nombre, 'guard_name' => 'web']);
@@ -42,9 +42,9 @@ class PermisosSeeder extends Seeder
         $areas = [
             'Planificación' => ['paises', 'departamentos', 'provincias', 'municipios', 'zonas', 'vias-acceso'],
             'Comercial' => ['empresas', 'edificios', 'contratos', 'cuotas-contrato', 'cobranzas', 'personas'],
-            'Técnico' => ['clasificadores-tecnicos', 'ascensores', 'equipos', 'mantenimientos', 'ordenes-mantenimiento', 'emergencias', 'repuestos', 'contratos-tecnicos'],
+            'Técnico' => ['visitas-mantenimiento', 'clasificadores-tecnicos', 'ascensores', 'equipos', 'mantenimientos', 'ordenes-mantenimiento', 'emergencias', 'repuestos', 'contratos-tecnicos'],
             'Almacenes' => ['almacenes', 'insumos', 'grupos-bienes', 'movimientos-almacen', 'compras', 'facturas-proveedor'],
-            'Financiero' => ['bancos', 'cuentas-bancarias', 'ingresos-tesoreria', 'traspasos-cuentas', 'ordenes-cancelacion', 'fondos-rendir', 'rendiciones-fondo', 'cobranzas'],
+            'Financiero' => ['bancos', 'cuentas-bancarias', 'comprobantes', 'pagos-clientes', 'ingresos-tesoreria', 'traspasos-cuentas', 'ordenes-cancelacion', 'fondos-rendir', 'rendiciones-fondo', 'cobranzas'],
             'Recursos Humanos' => ['cargos', 'profesiones', 'personal', 'planillas'],
         ];
 
@@ -72,6 +72,8 @@ class PermisosSeeder extends Seeder
                 'emergencias.ver', 'emergencias.crear', 'ordenes-mantenimiento.ver', 'mantenimientos.ver',
             ],
         ];
+        // Cliente: solo entra a su portal. No ve ningún módulo interno.
+        $explicitos += ['Cliente' => ['portal.usar']];
         foreach ($explicitos as $nombre => $permisos) {
             Role::firstOrCreate(['name' => $nombre, 'guard_name' => 'web'])
                 ->syncPermissions(Permission::whereIn('name', $permisos)->pluck('name'));

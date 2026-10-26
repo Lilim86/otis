@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useSesionStore } from '@/stores/sesion'
 import { menu } from '@/modulos'
@@ -7,6 +7,12 @@ import { menu } from '@/modulos'
 const sesion = useSesionStore()
 const router = useRouter()
 const menuAbierto = ref(false)
+
+// Cada persona ve solo los módulos que su rol puede consultar.
+const menuVisible = computed(() =>
+  menu.map((g) => ({ ...g, items: g.items.filter((m) => sesion.puede(`${m.clave}.ver`)) })).filter((g) => g.items.length),
+)
+const rol = computed(() => (sesion.usuario?.es_super_admin ? 'Super Administrador' : sesion.usuario?.roles?.join(', ') || 'Sin rol'))
 
 async function salir() {
   await sesion.salir()
@@ -39,7 +45,26 @@ async function salir() {
           Inicio
         </RouterLink>
 
-        <div v-for="grupo in menu" :key="grupo.grupo">
+        <RouterLink
+          v-if="sesion.usuario?.es_tecnico"
+          :to="{ name: 'tecnico-ruta' }"
+          class="block rounded px-3 py-2 hover:bg-white/10"
+          active-class="bg-oro-500/20 text-oro-200"
+          @click="menuAbierto = false"
+        >
+          Mi ruta
+        </RouterLink>
+
+        <RouterLink
+          :to="{ name: 'reportes' }"
+          class="block rounded px-3 py-2 hover:bg-white/10"
+          active-class="bg-oro-500/20 text-oro-200"
+          @click="menuAbierto = false"
+        >
+          Reportes
+        </RouterLink>
+
+        <div v-for="grupo in menuVisible" :key="grupo.grupo">
           <p class="px-3 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-oro-400/80">{{ grupo.grupo }}</p>
           <RouterLink
             v-for="modulo in grupo.items"
@@ -57,7 +82,10 @@ async function salir() {
 
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="hidden items-center justify-end gap-4 border-b-2 border-oro-400 bg-white px-6 py-3 lg:flex">
-        <span class="text-sm text-slate-600">{{ sesion.usuario?.name }}</span>
+        <div class="text-right leading-tight">
+          <div class="text-sm font-semibold text-marca-900">{{ sesion.usuario?.name || sesion.usuario?.username }}</div>
+          <div class="text-xs text-slate-500">{{ rol }}</div>
+        </div>
         <button class="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50" @click="salir">Salir</button>
       </header>
 

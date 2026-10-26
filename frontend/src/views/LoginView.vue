@@ -44,6 +44,10 @@ const pedirCodigo = () => {
   if (paso.value === 1 && (!username.value.trim() || !password.value)) return
   return ejecutar(async () => {
     const r = await sesion.pedirCodigo({ username: username.value, password: password.value })
+    if (r.sin_codigo) {
+      router.push({ name: 'dashboard' })
+      return
+    }
     correo.value = r.correo
     paso.value = 2
     intento.value = false

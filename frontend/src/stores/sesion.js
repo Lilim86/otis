@@ -20,7 +20,12 @@ export const useSesionStore = defineStore('sesion', () => {
     }
   }
 
-  const pedirCodigo = (credenciales) => solicitarCodigo(credenciales)
+  async function pedirCodigo(credenciales) {
+    const r = await solicitarCodigo(credenciales)
+    // Con el código por correo desactivado (desarrollo) el backend ya inició la sesión.
+    if (r.sin_codigo) usuario.value = await usuarioActual()
+    return r
+  }
 
   async function confirmarCodigo(datos) {
     await verificarCodigo(datos)

@@ -35,17 +35,17 @@ export const profesiones = crearServicioCrud('profesiones')
 export const personal = crearServicioCrud('personal')
 
 // Comercial
-export const empresas = crearServicioCrud('empresas')
-export const edificios = crearServicioCrud('edificios')
-export const contratos = crearServicioCrud('contratos')
+export const empresas = conAprobacion('empresas')
+export const edificios = conAprobacion('edificios')
+export const contratos = conAprobacion('contratos')
 
 // Almacenes
-export const insumos = crearServicioCrud('insumos')
+export const insumos = conAprobacion('insumos')
 
 // Financiero
 export const bancos = crearServicioCrud('bancos')
 export const cuentasBancarias = crearServicioCrud('cuentas-bancarias')
-export const cobranzas = crearServicioCrud('cobranzas')
+export const cobranzas = conAprobacion('cobranzas')
 
 // ---- Módulos equivalentes al sistema SOFIA ----
 
@@ -101,3 +101,16 @@ export const permisos = () => http.get('/api/seguridad/permisos').then((r) => r.
 export const asignarRoles = (usuarioId, nombres) =>
   http.put(`/api/seguridad/usuarios/${usuarioId}/roles`, { roles: nombres }).then((r) => r.data.data)
 export const accesos = (params) => http.get('/api/seguridad/accesos', { params }).then((r) => r.data)
+
+// Secretaría, mantenimiento por contrato y pagos de clientes
+export const citas = crearServicioCrud('citas')
+export const visitasMantenimiento = {
+  ...crearServicioCrud('visitas-mantenimiento'),
+  /** Crea las visitas preventivas del contrato (una cada 30 días hábiles). */
+  generarCronograma: (datos) => http.post('/api/visitas-mantenimiento/generar', datos).then((r) => r.data),
+}
+export const pagosClientes = {
+  ...conAprobacion('pagos-clientes'),
+  /** Rechazar un pago exige decir el motivo. */
+  rechazar: (id, motivo) => http.post(`/api/pagos-clientes/${id}/anular`, { motivo_rechazo: motivo }).then((r) => r.data.data),
+}

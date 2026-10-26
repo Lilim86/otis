@@ -1,16 +1,9 @@
 import { personas } from '@/services'
+import { ubicacion } from './comun'
 
 // Cada módulo se describe una sola vez: el componente ModuloCrud arma la tabla y el formulario.
 // tipo: texto | email | fecha | numero | select. Un select toma sus opciones de un catálogo
 // (`catalogo`) o de otro módulo (`remoto`), y puede depender de otro campo (`depende`).
-const ubicacion = [
-  { clave: 'pais_id', etiqueta: 'País', tipo: 'select', remoto: { servicio: 'paises', texto: 'nombre' } },
-  { clave: 'departamento_id', etiqueta: 'Departamento', tipo: 'select', remoto: { servicio: 'departamentos', texto: 'nombre', depende: 'pais_id' } },
-  { clave: 'provincia_id', etiqueta: 'Provincia', tipo: 'select', remoto: { servicio: 'provincias', texto: 'nombre', depende: 'departamento_id' } },
-  { clave: 'municipio_id', etiqueta: 'Municipio', tipo: 'select', remoto: { servicio: 'municipios', texto: 'nombre', depende: 'provincia_id' } },
-  { clave: 'zona_id', etiqueta: 'Zona / Barrio', tipo: 'select', remoto: { servicio: 'zonas', texto: 'nombre', depende: 'municipio_id' } },
-  { clave: 'via_acceso_id', etiqueta: 'Vía de acceso (calle, av.)', tipo: 'select', remoto: { servicio: 'viasAcceso', texto: 'nombre', depende: 'zona_id' } },
-]
 
 export default {
   clave: 'personas',

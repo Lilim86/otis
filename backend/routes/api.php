@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CitaController;
 use App\Http\Controllers\Api\ClasificadorTecnicoController;
 use App\Http\Controllers\Api\CobranzaController;
 use App\Http\Controllers\Api\CompraController;
+use App\Http\Controllers\Api\ComprobanteController;
 use App\Http\Controllers\Api\ConciliacionController;
 use App\Http\Controllers\Api\ContratoController;
 use App\Http\Controllers\Api\ContratoTecnicoController;
@@ -33,19 +34,23 @@ use App\Http\Controllers\Api\MunicipioController;
 use App\Http\Controllers\Api\OrdenCancelacionController;
 use App\Http\Controllers\Api\OrdenMantenimientoController;
 use App\Http\Controllers\Api\OtpController;
+use App\Http\Controllers\Api\PagoClienteController;
 use App\Http\Controllers\Api\PaisController;
 use App\Http\Controllers\Api\PersonaController;
 use App\Http\Controllers\Api\PersonalController;
 use App\Http\Controllers\Api\PlanillaController;
+use App\Http\Controllers\Api\PortalClienteController;
 use App\Http\Controllers\Api\ProfesionController;
 use App\Http\Controllers\Api\ProvinciaController;
 use App\Http\Controllers\Api\RendicionFondoController;
 use App\Http\Controllers\Api\RepuestoController;
 use App\Http\Controllers\Api\RolController;
+use App\Http\Controllers\Api\TecnicoController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\TraspasoCuentaController;
 use App\Http\Controllers\Api\UsuarioController;
 use App\Http\Controllers\Api\ViaAccesoController;
+use App\Http\Controllers\Api\VisitaMantenimientoController;
 use App\Http\Controllers\Api\ZonaController;
 use App\Http\Controllers\ReporteCombinadoController;
 use App\Http\Controllers\ReporteController;
@@ -80,7 +85,43 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
         'permisos' => $request->user()->getAllPermissions()->pluck('name')->values(),
         'es_super_admin' => $request->user()->id === 1,
         'permisos_activos' => (bool) config('sofia.permisos_activos'),
+        'es_cliente' => $request->user()->empresa_id !== null,
+        'es_tecnico' => $request->user()->personal_id !== null,
+        'empresa' => $request->user()->empresa?->only(['id', 'denominacion']),
     ]);
+
+    // Vista del técnico: solo sus visitas.
+    Route::middleware('tecnico')->prefix('tecnico')->group(function () {
+        Route::get('ruta', [TecnicoController::class, 'ruta']);
+        Route::post('visitas/{id}/completar', [TecnicoController::class, 'completar']);
+    });
+
+    // Facturas y recibos: ver, enviar por correo y modelos de diseño.
+    Route::middleware('permiso')->prefix('comprobantes')->group(function () {
+        Route::get('modelo/{tipo}', [ComprobanteController::class, 'modelo']);
+        Route::get('cobranzas/{id}/envios', [ComprobanteController::class, 'envios']);
+        Route::post('cobranzas/{id}/enviar', [ComprobanteController::class, 'enviar'])->middleware('throttle:20,1');
+        Route::get('cobranzas/{id}/{tipo}', [ComprobanteController::class, 'ver']);
+    });
+
+    // Portal del cliente: cada empresa ve y hace solo lo suyo.
+    Route::middleware('cliente')->prefix('portal')->group(function () {
+        Route::get('resumen', [PortalClienteController::class, 'resumen']);
+        Route::get('contratos', [PortalClienteController::class, 'contratosIndex']);
+        Route::get('equipos', [PortalClienteController::class, 'equipos']);
+        Route::get('mantenimientos', [PortalClienteController::class, 'mantenimientos']);
+        Route::post('mantenimientos/solicitar', [PortalClienteController::class, 'solicitar']);
+        Route::post('mantenimientos/{id}/calificar', [PortalClienteController::class, 'calificar']);
+        Route::get('cronograma', [PortalClienteController::class, 'cronograma']);
+        Route::get('cuotas', [PortalClienteController::class, 'cuotas']);
+        Route::get('pagos/cuenta', [PortalClienteController::class, 'datosCuenta']);
+        Route::get('pagos', [PortalClienteController::class, 'pagos']);
+        Route::post('pagos', [PortalClienteController::class, 'pagar'])->middleware('throttle:20,1');
+        Route::get('pagos/{id}/comprobante', [PortalClienteController::class, 'comprobantePago']);
+        Route::get('pagos/{id}/recibo', [PortalClienteController::class, 'reciboPago']);
+        Route::get('mantenimientos/{id}/informe', [PortalClienteController::class, 'informeVisita']);
+        Route::post('mantenimientos/{id}/firmar', [PortalClienteController::class, 'firmar'])->middleware('throttle:20,1');
+    });
 
     Route::get('catalogos', [CatalogoController::class, 'index']);
     Route::get('dashboard/resumen', [DashboardController::class, 'resumen']);
@@ -127,6 +168,11 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
     // Recursos humanos
     $modulo('cargos', CargoController::class);
     $modulo('citas', CitaController::class);
+    Route::post('visitas-mantenimiento/generar', [VisitaMantenimientoController::class, 'generar'])->middleware('permiso');
+    Route::get('visitas-mantenimiento/{id}/informe', [VisitaMantenimientoController::class, 'informe'])->middleware('permiso');
+    Route::get('pagos-clientes/{id}/comprobante', [PagoClienteController::class, 'comprobante'])->middleware('permiso');
+    $modulo('visitas-mantenimiento', VisitaMantenimientoController::class);
+    $modulo('pagos-clientes', PagoClienteController::class, true);
     $modulo('profesiones', ProfesionController::class);
     $modulo('personal', PersonalController::class);
     $modulo('personas', PersonaController::class, true);

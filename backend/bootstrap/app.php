@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\SoloCliente;
+use App\Http\Middleware\SoloTecnico;
 use App\Http\Middleware\VerificaModulo;
 use App\Http\Middleware\VerificaPermiso;
 use Illuminate\Foundation\Application;
@@ -20,6 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permiso' => VerificaPermiso::class,
             'modulo' => VerificaModulo::class,
+            'cliente' => SoloCliente::class,
+            'tecnico' => SoloTecnico::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -12,7 +12,7 @@ class CatalogoController extends Controller
     public function index(): JsonResponse
     {
         $claves = ['estados_registro', 'tipos_documento', 'expedido_en', 'tipos_persona', 'tipos_empresa', 'tipos_edificacion',
-            'unidades_medida', 'rotacion', 'tipos_insumo', 'tipos_almacen', 'estados_cuota', 'tipos_ingreso', 'tipos_fondo', 'monedas'];
+            'unidades_medida', 'rotacion', 'tipos_insumo', 'tipos_almacen', 'estados_cuota', 'tipos_ingreso', 'tipos_fondo', 'monedas', 'tipos_cita', 'situaciones_cita', 'situaciones_visita', 'tipos_visita'];
 
         $datos = [];
         foreach ($claves as $clave) {

@@ -16,6 +16,8 @@ class UsuarioResource extends JsonResource
             'name' => $this->name,
             'username' => $this->username,
             'email' => $this->email,
+            'empresa_id' => $this->empresa_id,
+            'personal_id' => $this->personal_id,
             'roles' => $this->roles->pluck('name'),
             'estado' => (bool) $this->estado,
             'creado_por' => $this->creado_por,

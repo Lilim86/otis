@@ -42,6 +42,14 @@ class OtpController extends Controller
             $this->accesos->registrar('FALLO', null, $datos['username'], $request);
             throw $e;
         }
+        // Con el código desactivado (solo desarrollo) basta usuario y contraseña: se inicia la sesión de una vez.
+        if (! config('otp.requerido') && $request->hasSession()) {
+            Auth::guard('web')->login($usuario);
+            $request->session()->regenerate();
+
+            return response()->json(['sin_codigo' => true, 'user' => new UsuarioResource($usuario)]);
+        }
+
         $this->accesos->registrar('OTP_SOLICITADO', $usuario, null, $request);
         $codigo = $this->otp->generar($usuario);
 

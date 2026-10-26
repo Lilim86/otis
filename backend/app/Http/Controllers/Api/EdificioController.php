@@ -12,6 +12,8 @@ class EdificioController extends CrudController
 
     protected string $modelo = Edificio::class;
 
+    protected array $con = ['empresa'];
+
     protected bool $conAprobacion = true;
 
     protected array $buscar = ['codigo_edificio', 'codigo_administrativo', 'denominacion', 'referencia_cercana'];

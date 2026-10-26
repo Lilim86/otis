@@ -41,6 +41,8 @@ class User extends Authenticatable
         'email',
         'password',
         'estado',
+        'empresa_id',
+        'personal_id',
     ];
 
     /**
@@ -78,6 +80,16 @@ class User extends Authenticatable
     }
 
     /** Busca por nombre de usuario o por correo, para que el login acepte cualquiera de los dos. */
+    public function personal()
+    {
+        return $this->belongsTo(Personal::class, 'personal_id');
+    }
+
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
     public function scopeConLogin($consulta, string $login)
     {
         return $consulta->where(fn ($q) => $q->where('username', $login)->orWhereRaw('LOWER(email) = ?', [mb_strtolower($login)]));

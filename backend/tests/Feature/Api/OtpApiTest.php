@@ -15,6 +15,12 @@ class OtpApiTest extends TestCase
 
     private const FRONTEND = 'http://127.0.0.1:5173';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['otp.requerido' => true]); // el código por correo es lo normal; solo se apaga en desarrollo
+    }
+
     private function usuario(array $extra = []): User
     {
         return User::create($extra + ['name' => 'Admin', 'username' => 'admin', 'email' => 'administrador@otis.com', 'password' => 'secret123']);
@@ -194,5 +200,17 @@ class OtpApiTest extends TestCase
 
         config(['otp.requerido' => false]);
         $this->postJson('/api/auth/token', ['username' => 'admin', 'password' => 'secret123'])->assertOk();
+    }
+
+    public function test_con_el_codigo_desactivado_el_spa_entra_con_usuario_y_contrasena(): void
+    {
+        config(['otp.requerido' => false]);
+        $cabeceras = ['Origin' => self::FRONTEND, 'Referer' => self::FRONTEND.'/'];
+        User::create(['name' => 'Ana', 'username' => 'ana', 'email' => 'ana@example.com', 'password' => 'secret123']);
+
+        $this->postJson('/api/auth/otp/solicitar', ['username' => 'ana', 'password' => 'mala'], $cabeceras)->assertUnprocessable();
+        $this->postJson('/api/auth/otp/solicitar', ['username' => 'ana', 'password' => 'secret123'], $cabeceras)
+            ->assertOk()->assertJsonPath('sin_codigo', true)->assertJsonPath('user.username', 'ana');
+        $this->getJson('/api/user', $cabeceras)->assertOk()->assertJsonPath('username', 'ana');
     }
 }

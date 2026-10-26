@@ -19,6 +19,7 @@ const cargando = ref(false)
 const aviso = ref({ tipo: '', texto: '' })
 
 const consulta = reactive({ q: '', estado: '', estado_registro: '', filtros: {} })
+for (const f of props.modulo.filtros ?? []) consulta.filtros[f.clave] = '' // así el combo arranca en "Todos"
 let temporizador = null
 
 const puede = (operacion) => sesion.puede(`${props.modulo.clave}.${operacion}`)
@@ -80,8 +81,29 @@ async function ejecutar(accion, confirmacion, exito) {
   }
 }
 
-const aprobar = (f) => ejecutar(() => servicio.aprobar(f.id), '¿Aprobar este registro?', 'Registro aprobado.')
-const anular = (f) => ejecutar(() => servicio.anular(f.id), '¿Anular este registro? Quedará visible pero ya no se podrá modificar.', 'Registro anulado.')
+// Acciones propias de un módulo (ej.: imprimir el recibo de una cobranza).
+const accionesVisibles = (fila) => (props.modulo.accionesFila ?? []).filter((a) => (!a.visible || a.visible(fila)) && (!a.permiso || puede(a.permiso)))
+async function accionFila(accion, fila) {
+  try {
+    const mensaje = await accion.ejecutar(fila)
+    if (mensaje) avisar('ok', mensaje)
+  } catch (e) {
+    const { mensaje, campos } = leerError(e)
+    avisar('error', Object.values(campos)[0] ?? mensaje)
+  }
+}
+
+const etiqueta = (clave, defecto) => props.modulo.etiquetas?.[clave] ?? defecto
+const aprobar = (f) => ejecutar(() => servicio.aprobar(f.id), `¿${etiqueta('aprobar', 'Aprobar')} este registro?`, 'Listo.')
+function anular(f) {
+  // Rechazar un pago, por ejemplo, exige decir el motivo.
+  if (props.modulo.pedirMotivo) {
+    const motivo = window.prompt(props.modulo.pedirMotivo)
+    if (!motivo?.trim()) return
+    return ejecutar(() => servicio.rechazar(f.id, motivo.trim()), null, 'Listo.')
+  }
+  return ejecutar(() => servicio.anular(f.id), '¿Anular este registro? Quedará visible pero ya no se podrá modificar.', 'Registro anulado.')
+}
 const eliminar = (f) => ejecutar(() => servicio.eliminar(f.id), '¿Enviar este registro a la papelera?', 'Enviado a la papelera.')
 const restaurar = (f) => ejecutar(() => servicio.restaurar(f.id), null, 'Registro restaurado.')
 const cambiarEstado = (f) =>
@@ -99,7 +121,12 @@ const guardando = ref(false)
 const opciones = reactive({}) // opciones de los selects remotos, por campo
 
 function vaciarFormulario(fila = null) {
-  for (const c of campos.value) form[c.clave] = fila ? (fila[c.clave] ?? '') : (c.defecto ?? '')
+  for (const c of campos.value) {
+    let valor = fila ? (fila[c.clave] ?? '') : (c.defecto ?? '')
+    if (c.arreglo && Array.isArray(valor)) valor = valor[0] ?? '' // un solo valor que la API recibe como lista
+    // datetime-local necesita AAAA-MM-DDTHH:mm
+    form[c.clave] = c.tipo === 'fechahora' && valor ? String(valor).replace(' ', 'T').slice(0, 16) : valor
+  }
 }
 
 async function cargarOpciones(campo) {
@@ -109,7 +136,7 @@ async function cargarOpciones(campo) {
     return
   }
   try {
-    opciones[campo.clave] = await servicios[nombre].todos(depende ? { [depende]: form[depende] } : {})
+    opciones[campo.clave] = await servicios[nombre].todos({ ...campo.remoto.params, ...(depende ? { [depende]: form[depende] } : {}) })
   } catch {
     opciones[campo.clave] = []
   }
@@ -133,15 +160,19 @@ async function abrir(fila = null) {
 }
 
 const opcionesDe = (campo) =>
-  campo.catalogo
+  campo.opciones
+    ? campo.opciones
+    : campo.catalogo
     ? (catalogos.datos[campo.catalogo] ?? []).map((o) => ({ valor: o.codigo, texto: o.etiqueta }))
-    : (opciones[campo.clave] ?? []).map((o) => ({ valor: o.id, texto: o[campo.remoto.texto] }))
+    : (opciones[campo.clave] ?? []).map((o) => ({ valor: o[campo.remoto.valor ?? 'id'], texto: o[campo.remoto.texto] }))
 
 async function guardar() {
   guardando.value = true
   errores.value = {}
   try {
-    const datos = Object.fromEntries(campos.value.map((c) => [c.clave, form[c.clave] === '' ? null : form[c.clave]]))
+    const datos = Object.fromEntries(
+      campos.value.map((c) => [c.clave, c.arreglo ? (form[c.clave] === '' ? [] : [form[c.clave]]) : form[c.clave] === '' ? null : form[c.clave]]),
+    )
     if (editando.value) await servicio.actualizar(editando.value, datos)
     else await servicio.crear(datos)
     modal.value = false
@@ -156,15 +187,16 @@ async function guardar() {
   }
 }
 
-const tipoInput = (campo) => ({ email: 'email', fecha: 'date', numero: 'number' })[campo.tipo] ?? 'text'
+const tipoInput = (campo) => ({ email: 'email', fecha: 'date', fechahora: 'datetime-local', numero: 'number' })[campo.tipo] ?? 'text'
 </script>
 
 <template>
   <div>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-xl font-bold text-marca-900">{{ modulo.titulo }}</h1>
+      <component :is="modulo.cabecera" v-if="modulo.cabecera" @hecho="cargar(1)" />
       <button
-        v-if="vista === 'activos' && puede('crear')"
+        v-if="vista === 'activos' && puede('crear') && !modulo.sinFormulario"
         class="rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700"
         @click="abrir()"
       >
@@ -252,11 +284,12 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', numero: 'number' 
                 <button v-if="puede('restaurar')" class="mr-2 text-marca-600 hover:underline" @click="restaurar(fila)">Restaurar</button>
               </template>
               <template v-else>
-                <button v-if="puede('editar') && fila.estado_registro !== 'ANL'" class="mr-2 text-marca-600 hover:underline" @click="abrir(fila)">Editar</button>
-                <button v-if="modulo.aprobacion && fila.estado_registro === 'REG' && puede('aprobar')" class="mr-2 text-emerald-700 hover:underline" @click="aprobar(fila)">Aprobar</button>
-                <button v-if="modulo.aprobacion && fila.estado_registro !== 'ANL' && puede('anular')" class="mr-2 text-amber-700 hover:underline" @click="anular(fila)">Anular</button>
-                <button v-if="puede('editar')" class="mr-2 text-slate-600 hover:underline" @click="cambiarEstado(fila)">{{ fila.estado ? 'Dar de baja' : 'Dar de alta' }}</button>
-                <button v-if="puede('eliminar')" class="text-red-600 hover:underline" @click="eliminar(fila)">Eliminar</button>
+                <button v-for="a in accionesVisibles(fila)" :key="a.etiqueta" class="mr-2 text-oro-700 hover:underline" @click="accionFila(a, fila)">{{ a.etiqueta }}</button>
+                <button v-if="puede('editar') && fila.estado_registro !== 'ANL' && !modulo.sinFormulario" class="mr-2 text-marca-600 hover:underline" @click="abrir(fila)">Editar</button>
+                <button v-if="modulo.aprobacion && fila.estado_registro === 'REG' && puede('aprobar')" class="mr-2 text-emerald-700 hover:underline" @click="aprobar(fila)">{{ etiqueta('aprobar', 'Aprobar') }}</button>
+                <button v-if="modulo.aprobacion && fila.estado_registro !== 'ANL' && puede('anular')" class="mr-2 text-amber-700 hover:underline" @click="anular(fila)">{{ etiqueta('anular', 'Anular') }}</button>
+                <button v-if="puede('editar') && !modulo.sinFormulario" class="mr-2 text-slate-600 hover:underline" @click="cambiarEstado(fila)">{{ fila.estado ? 'Dar de baja' : 'Dar de alta' }}</button>
+                <button v-if="puede('eliminar') && !modulo.sinFormulario" class="text-red-600 hover:underline" @click="eliminar(fila)">Eliminar</button>
               </template>
             </td>
           </tr>
@@ -281,7 +314,7 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', numero: 'number' 
         <section v-for="seccion in modulo.secciones" :key="seccion.titulo" class="mt-5">
           <h3 class="border-b border-slate-200 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ seccion.titulo }}</h3>
           <div class="mt-3 grid gap-4 sm:grid-cols-2">
-            <label v-for="campo in seccion.campos" :key="campo.clave" class="block text-sm">
+            <label v-for="campo in seccion.campos" :key="campo.clave" class="block text-sm" :class="campo.tipo === 'textarea' ? 'sm:col-span-2' : ''">
               <span class="text-slate-600">{{ campo.etiqueta }}<span v-if="campo.requerido" class="text-red-600"> *</span></span>
 
               <select
@@ -294,7 +327,8 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', numero: 'number' 
                 <option value="">— Elegir —</option>
                 <option v-for="o in opcionesDe(campo)" :key="o.valor" :value="o.valor">{{ o.texto }}</option>
               </select>
-              <input v-else v-model="form[campo.clave]" :type="tipoInput(campo)" class="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-oro-500 focus:outline-none" />
+              <textarea v-else-if="campo.tipo === 'textarea'" v-model="form[campo.clave]" rows="3" class="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-oro-500 focus:outline-none" />
+              <input v-else v-model="form[campo.clave]" :type="tipoInput(campo)" :step="campo.tipo === 'numero' ? 'any' : undefined" class="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-oro-500 focus:outline-none" />
 
               <span v-if="errores[campo.clave]" class="text-xs text-red-600">{{ errores[campo.clave] }}</span>
             </label>

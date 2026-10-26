@@ -46,4 +46,9 @@ class Contrato extends Auditable
     {
         return $this->hasMany(CuotaContrato::class, 'contrato_id');
     }
+
+    public function visitas()
+    {
+        return $this->hasMany(VisitaMantenimiento::class, 'contrato_id');
+    }
 }

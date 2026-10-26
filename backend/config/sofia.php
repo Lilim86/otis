@@ -61,6 +61,33 @@ return [
     'tipos_cita' => ['CITA' => 'Cita', 'CONSULTA' => 'Consulta', 'REUNION' => 'Reunión', 'VISITA' => 'Visita a obra'],
     'situaciones_cita' => ['PROGRAMADA' => 'Programada', 'CONFIRMADA' => 'Confirmada', 'ATENDIDA' => 'Atendida', 'CANCELADA' => 'Cancelada'],
 
+    // Portal del cliente: cuenta a la que se transfiere (hoy es una cuenta de pruebas) y cronograma de mantenimiento.
+    'pagos' => [
+        'cuenta_destino' => env('PAGOS_CUENTA_DESTINO'),
+        'banco' => env('PAGOS_BANCO', 'Banco por definir'),
+        'titular' => env('PAGOS_TITULAR', 'CGI Bolivia (cuenta de pruebas)'),
+        'moneda' => 'BOB',
+    ],
+    'mantenimiento' => [
+        'intervalo_dias_habiles' => 30,
+        // Feriados nacionales de fecha fija (mes-día). Los móviles (Carnaval, Viernes Santo, Corpus Christi) no están.
+        'feriados' => ['01-01', '01-22', '05-01', '06-21', '08-06', '11-02', '12-25'],
+    ],
+
+    'tipos_visita' => ['PREVENTIVO' => 'Preventivo', 'CORRECTIVO' => 'Correctivo'],
+    'situaciones_visita' => ['PROGRAMADA' => 'Programada', 'SOLICITADA' => 'Solicitada por el cliente', 'REALIZADA' => 'Realizada', 'REPROGRAMADA' => 'Reprogramada', 'CANCELADA' => 'Cancelada'],
+
+    // Quien emite las facturas y recibos (los datos fiscales reales se cargan en el .env).
+    'emisor' => [
+        'razon_social' => env('EMPRESA_RAZON_SOCIAL', 'Compañía Comercial General Industrial Ltda.'),
+        'nombre_comercial' => env('EMPRESA_NOMBRE', 'CGI BOLIVIA'),
+        'nit' => env('EMPRESA_NIT', '0000000000'),
+        'direccion' => env('EMPRESA_DIRECCION', 'La Paz, Bolivia'),
+        'telefono' => env('EMPRESA_TELEFONO', '800-16-1002'),
+        'correo' => env('EMPRESA_CORREO'),
+        'actividad' => 'Venta, instalación y mantenimiento de ascensores',
+    ],
+
     'monedas' => ['BOB' => 'Bolivianos', 'USD' => 'Dólares'],
 
     // Precios de venta a partir del precio de compra FOB. Los factores se deducen de un solo
