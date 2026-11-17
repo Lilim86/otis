@@ -1,0 +1,51 @@
+# Base de datos del sistema OTIS en Docker.
+#   Levantar:  docker compose up -d
+#   Ver:       docker compose ps     |  docker compose logs -f db
+#   Apagar:    docker compose down   (los datos NO se borran: viven en el volumen "otis_pgdata")
+# Las credenciales salen del archivo .env de esta carpeta (no se sube a git).
+
+name: otis
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: otis-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: America/La_Paz
+      PGTZ: America/La_Paz
+    ports:
+      # Solo desde esta PC (127.0.0.1). El 5432 lo ocupa el PostgreSQL instalado, por eso se usa otro.
+      - "127.0.0.1:${DB_PUERTO_DOCKER:-5433}:5432"
+    volumes:
+      # Datos de la base. Desde PostgreSQL 18 la imagen guarda todo dentro de /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+      # Scripts .sql/.sh que se ejecutan solo la PRIMERA vez que se crea la base (volumen vacío).
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro,Z
+      # Carpeta compartida para sacar y cargar respaldos (pg_dump / pg_restore).
+      - ./docker/postgres/respaldos:/respaldos:Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Página web para mirar y consultar la base: http://127.0.0.1:8080
+  adminer:
+    image: adminer:5
+    container_name: otis-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "127.0.0.1:${ADMINER_PUERTO:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    name: otis_pgdata

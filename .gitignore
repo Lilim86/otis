@@ -3,3 +3,8 @@
 Thumbs.db
 .idea/
 .vite/
+
+# Docker: credenciales locales y respaldos de la base (tienen datos reales)
+/.env
+docker/postgres/respaldos/*
+!docker/postgres/respaldos/.gitkeep
