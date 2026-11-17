@@ -23,6 +23,11 @@ export const portal = {
     for (const [k, v] of Object.entries(datos)) if (v !== null && v !== undefined && v !== '') form.append(k, v)
     return http.post(`${base}/pagos`, form).then((r) => r.data)
   },
+  /** { data: productos, edificios, dias_habiles, fecha_estimada } */
+  catalogo: () => leer('catalogo'),
+  pedidos: () => leer('pedidos').then((r) => r.data),
+  /** datos: { producto_id, cantidad, edificio_id, observaciones }. Devuelve { message, data }. */
+  pedirProducto: (datos) => http.post(`${base}/pedidos`, datos).then((r) => r.data),
   verComprobante: (pagoId) => abrirArchivo(`${base}/pagos/${pagoId}/comprobante`),
   verRecibo: (pagoId) => abrirArchivo(`${base}/pagos/${pagoId}/recibo`),
   verInforme: (visitaId) => abrirArchivo(`${base}/mantenimientos/${visitaId}/informe`),

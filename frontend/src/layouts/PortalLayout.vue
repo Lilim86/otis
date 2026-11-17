@@ -13,6 +13,7 @@ const enlaces = [
   { nombre: 'portal-cronograma', texto: 'Cronograma' },
   { nombre: 'portal-pagos', texto: 'Pagos' },
   { nombre: 'portal-contratos', texto: 'Contratos y equipos' },
+  { nombre: 'portal-catalogo', texto: 'Catálogo' },
 ]
 
 async function salir() {

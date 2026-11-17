@@ -12,13 +12,13 @@ class EdificioController extends CrudController
 
     protected string $modelo = Edificio::class;
 
-    protected array $con = ['empresa'];
+    protected array $con = ['empresa', 'cobrador'];
 
     protected bool $conAprobacion = true;
 
     protected array $buscar = ['codigo_edificio', 'codigo_administrativo', 'denominacion', 'referencia_cercana'];
 
-    protected array $filtros = ['tipo_edificacion', 'departamento_id', 'zona_id', 'empresa_id'];
+    protected array $filtros = ['tipo_edificacion', 'departamento_id', 'zona_id', 'empresa_id', 'cobrador_id'];
 
     protected array $orden = [['codigo_edificio', 'asc']];
 
@@ -28,7 +28,7 @@ class EdificioController extends CrudController
 
     public function __construct()
     {
-        $this->con = [...$this->relacionesUbicacion(), 'propietario', 'empresa', 'contactoCobranzas', 'contactoTecnico'];
+        $this->con = [...$this->relacionesUbicacion(), 'propietario', 'empresa', 'contactoCobranzas', 'contactoTecnico', 'cobrador'];
     }
 
     protected function reglas(?Model $registro): array
@@ -44,6 +44,8 @@ class EdificioController extends CrudController
             'empresa_id' => ['nullable', $this->existe('empresas')],
             'contacto_cobranzas_id' => ['nullable', $this->existe('personas')],
             'contacto_tecnico_id' => ['nullable', $this->existe('personas')],
+            // Cobrador de la empresa que pasa a cobrar: una persona de tipo COBRADOR.
+            'cobrador_id' => ['nullable', $this->existe('personas')->where('tipo_persona', 'COBRADOR')],
             'latitud' => ['nullable', 'numeric', 'between:-90,90'],
             'longitud' => ['nullable', 'numeric', 'between:-180,180'],
             'altura_msnm' => ['nullable', 'numeric', 'between:-500,9000'],

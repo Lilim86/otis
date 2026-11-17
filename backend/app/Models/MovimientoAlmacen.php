@@ -10,7 +10,7 @@ class MovimientoAlmacen extends Auditable
 
     protected $table = 'movimientos_almacen';
 
-    protected $fillable = ['almacen_id', 'insumo_id', 'tipo', 'cantidad', 'costo_unitario_bs', 'fecha', 'referencia', 'compra_id', 'observacion'];
+    protected $fillable = ['almacen_id', 'insumo_id', 'tipo', 'cantidad', 'costo_unitario_bs', 'fecha', 'referencia', 'compra_id', 'personal_id', 'visita_id', 'motivo', 'observacion'];
 
     protected function casts(): array
     {
@@ -25,6 +25,16 @@ class MovimientoAlmacen extends Auditable
     public function insumo()
     {
         return $this->belongsTo(Insumo::class, 'insumo_id');
+    }
+
+    public function personal()
+    {
+        return $this->belongsTo(Personal::class, 'personal_id');
+    }
+
+    public function visita()
+    {
+        return $this->belongsTo(VisitaMantenimiento::class, 'visita_id');
     }
 
     public function compra()

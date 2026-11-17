@@ -2,6 +2,9 @@ import { bancos, cuentasBancarias, cobranzas, pagosClientes, comprobantes, compr
 import ModelosComprobante from '@/components/ModelosComprobante.vue'
 import { bs, fecha } from './comun'
 
+// Un contrato anulado no se ofrece para cobrar, salvo que ya sea el de la cobranza que se está editando.
+const contratoDisponible = (contrato, form) => contrato.estado_registro !== 'ANL' || String(contrato.id) === String(form.contrato_id)
+
 export const financiero = [
   {
     clave: 'bancos',
@@ -66,6 +69,7 @@ export const financiero = [
     columnas: [
       { clave: 'fecha_cobro', etiqueta: 'Fecha', valor: (f) => fecha(f.fecha_cobro) },
       { clave: 'cliente', etiqueta: 'Cliente', valor: (f) => f.contrato?.empresa?.denominacion ?? '—' },
+      { clave: 'edificio', etiqueta: 'Edificio', valor: (f) => f.contrato?.edificio?.denominacion ?? '—' },
       { clave: 'concepto', etiqueta: 'Concepto' },
       { clave: 'monto_facturado', etiqueta: 'Facturado', valor: (f) => bs(f.monto_facturado) },
       { clave: 'cobrado_bs', etiqueta: 'Cobrado', valor: (f) => bs(f.cobrado_bs) },
@@ -74,10 +78,56 @@ export const financiero = [
     filtros: [],
     secciones: [
       {
+        // El cliente y el edificio salen de sus contratos: el recibo queda vinculado a quien pagó.
+        titulo: 'Cliente del recibo',
+        campos: [
+          {
+            clave: 'empresa_id',
+            etiqueta: 'Cliente',
+            tipo: 'select',
+            requerido: true,
+            soloFormulario: true,
+            valorInicial: (f) => f.contrato?.empresa_id,
+            remoto: { servicio: 'empresas', texto: 'denominacion' },
+            alElegir(form, empresa) {
+              form.factura_a_nombre = empresa?.denominacion ?? ''
+              form.nit_facturado = empresa?.nit ?? ''
+            },
+          },
+          {
+            clave: 'edificio_id',
+            etiqueta: 'Edificio',
+            tipo: 'select',
+            requerido: true,
+            soloFormulario: true,
+            valorInicial: (f) => f.contrato?.edificio_id,
+            remoto: { servicio: 'contratos', depende: 'empresa_id', valor: 'edificio_id', texto: (c) => c.edificio?.denominacion ?? `Edificio #${c.edificio_id}`, filtrar: contratoDisponible, autoUnico: true },
+          },
+          {
+            clave: 'contrato_id',
+            etiqueta: 'Contrato',
+            tipo: 'select',
+            requerido: true,
+            remoto: { servicio: 'contratos', depende: 'edificio_id', tambien: ['empresa_id'], texto: (c) => c.codigo_contrato ?? `Contrato #${c.id}`, filtrar: contratoDisponible, autoUnico: true },
+          },
+          { clave: 'factura_a_nombre', etiqueta: 'Recibí de (a nombre de)' },
+          { clave: 'nit_facturado', etiqueta: 'NIT' },
+        ],
+      },
+      {
         titulo: 'Cobranza',
         campos: [
-          { clave: 'contrato_id', etiqueta: 'Contrato', tipo: 'select', requerido: true, remoto: { servicio: 'contratos', texto: 'codigo_contrato' } },
-          { clave: 'cuota_id', etiqueta: 'Cuota', tipo: 'select', remoto: { servicio: 'cuotasContrato', texto: 'nro_cuota', depende: 'contrato_id' } },
+          {
+            clave: 'cuota_id',
+            etiqueta: 'Cuota',
+            tipo: 'select',
+            remoto: { servicio: 'cuotasContrato', depende: 'contrato_id', texto: (c) => `Cuota ${c.nro_cuota} · ${bs(c.monto_bs)} · ${c.estado_cuota}` },
+            alElegir(form, cuota) {
+              if (!cuota) return
+              form.monto_facturado = cuota.monto_bs
+              form.concepto = cuota.concepto || `Cuota ${cuota.nro_cuota}`
+            },
+          },
           { clave: 'concepto', etiqueta: 'Concepto', requerido: true },
           { clave: 'monto_facturado', etiqueta: 'Monto facturado (Bs)', tipo: 'numero', requerido: true },
           { clave: 'cobrado_bs', etiqueta: 'Cobrado (Bs)', tipo: 'numero' },

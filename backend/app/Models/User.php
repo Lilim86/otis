@@ -42,6 +42,7 @@ class User extends Authenticatable
         'password',
         'estado',
         'empresa_id',
+        'persona_id',
         'personal_id',
     ];
 
@@ -88,6 +89,18 @@ class User extends Authenticatable
     public function empresa()
     {
         return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
+    /** Persona (tipo COBRADOR) con la que cobra: de ella salen sus edificios y sus cobranzas. */
+    public function persona()
+    {
+        return $this->belongsTo(Persona::class, 'persona_id');
+    }
+
+    /** Usa el portal del cobrador: tiene el rol y está enlazado a su persona cobradora. */
+    public function esCobrador(): bool
+    {
+        return $this->persona_id !== null && $this->hasRole('Cobrador');
     }
 
     public function scopeConLogin($consulta, string $login)

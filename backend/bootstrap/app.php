@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\SoloCliente;
+use App\Http\Middleware\SoloCobrador;
 use App\Http\Middleware\SoloTecnico;
 use App\Http\Middleware\VerificaModulo;
 use App\Http\Middleware\VerificaPermiso;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'modulo' => VerificaModulo::class,
             'cliente' => SoloCliente::class,
             'tecnico' => SoloTecnico::class,
+            'cobrador' => SoloCobrador::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

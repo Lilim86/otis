@@ -1,7 +1,39 @@
-import { empresas, edificios, contratos, cuotasContrato } from '@/services'
-import { ubicacion, regional, bs, fecha } from './comun'
+import { empresas, edificios, contratos, cuotasContrato, pedidosCatalogo } from '@/services'
+import { ubicacion, regional, bs, fecha, fechaHora, nombrePersona } from './comun'
+
+const accionPedido = (etiqueta, situacion, confirmar, resultado) => ({
+  etiqueta,
+  permiso: 'pedidos-catalogo.editar',
+  recargar: true,
+  visible: (f) => f.situacion === 'PENDIENTE',
+  async ejecutar(f) {
+    if (confirmar && !window.confirm(`¿Cancelar el pedido ${f.codigo}?`)) return
+    await pedidosCatalogo.modificar(f.id, { situacion })
+    return `${f.codigo} ${resultado}.`
+  },
+})
 
 export const comercial = [
+  {
+    clave: 'pedidos-catalogo',
+    titulo: 'Pedidos del catálogo',
+    servicio: pedidosCatalogo,
+    sinFormulario: true, // los crea el cliente desde su portal
+    busqueda: 'Buscar en las observaciones',
+    accionesFila: [accionPedido('Marcar atendido', 'ATENDIDO', false, 'marcado como atendido'), accionPedido('Cancelar', 'CANCELADO', true, 'cancelado')],
+    columnas: [
+      { clave: 'codigo', etiqueta: 'Pedido' },
+      { clave: 'cliente', etiqueta: 'Cliente', valor: (f) => f.empresa?.denominacion ?? '—' },
+      { clave: 'edificio', etiqueta: 'Edificio', valor: (f) => f.edificio?.denominacion ?? '—' },
+      { clave: 'producto', etiqueta: 'Producto', valor: (f) => f.producto?.nombre ?? '—' },
+      { clave: 'cantidad', etiqueta: 'Cant.' },
+      { clave: 'reunion', etiqueta: 'Reunión', valor: (f) => (f.cita ? fechaHora(f.cita.fecha_inicio) : fecha(f.fecha_compromiso)) },
+      { clave: 'situacion', etiqueta: 'Situación', catalogo: 'situaciones_pedido' },
+      { clave: 'observaciones', etiqueta: 'Observaciones' },
+    ],
+    filtros: [{ clave: 'situacion', etiqueta: 'Situación', catalogo: 'situaciones_pedido' }],
+    secciones: [],
+  },
   {
     clave: 'empresas',
     titulo: 'Empresas',
@@ -49,6 +81,7 @@ export const comercial = [
       { clave: 'denominacion', etiqueta: 'Edificio' },
       { clave: 'tipo_edificacion', etiqueta: 'Tipo' },
       { clave: 'empresa', etiqueta: 'Empresa', valor: (f) => f.empresa?.denominacion ?? '—' },
+      { clave: 'cobrador', etiqueta: 'Cobrador', valor: (f) => (f.cobrador ? nombrePersona(f.cobrador) : '—') },
     ],
     filtros: [],
     secciones: [
@@ -59,6 +92,8 @@ export const comercial = [
           { clave: 'denominacion', etiqueta: 'Denominación', requerido: true },
           { clave: 'tipo_edificacion', etiqueta: 'Tipo de edificación', tipo: 'select', catalogo: 'tipos_edificacion', requerido: true },
           { clave: 'empresa_id', etiqueta: 'Empresa (cliente)', tipo: 'select', remoto: { servicio: 'empresas', texto: 'denominacion' } },
+          // El cobrador que pasa a cobrar a este edificio: el edificio aparece en su ruta.
+          { clave: 'cobrador_id', etiqueta: 'Cobrador asignado', tipo: 'select', remoto: { servicio: 'personas', texto: nombrePersona, params: { tipo_persona: 'COBRADOR' } } },
           { clave: 'referencia_cercana', etiqueta: 'Referencia cercana' },
         ],
       },

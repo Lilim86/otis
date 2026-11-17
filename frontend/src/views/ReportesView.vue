@@ -46,7 +46,19 @@ onMounted(async () => {
   }
 })
 
-const descargar = (formato) => descargarReporte(clave.value, formato, parametros()).catch((e) => (error.value = leerError(e).mensaje))
+const descargando = ref('')
+async function descargar(formato) {
+  if (!clave.value) return
+  descargando.value = formato
+  error.value = ''
+  try {
+    await descargarReporte(clave.value, formato, parametros())
+  } catch (e) {
+    error.value = leerError(e).mensaje
+  } finally {
+    descargando.value = ''
+  }
+}
 const numero = (v) => (typeof v === 'number' ? v.toLocaleString('es-BO', { maximumFractionDigits: 2 }) : (v ?? ''))
 </script>
 
@@ -79,9 +91,16 @@ const numero = (v) => (typeof v === 'number' ? v.toLocaleString('es-BO', { maxim
       </label>
       <label class="text-xs text-slate-500">Buscar<input v-model="filtros.q" placeholder="Cliente, edificio…" class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-800" /></label>
 
-      <div v-if="reporte" class="flex items-end justify-end gap-2 md:col-span-6">
-        <button class="rounded border border-marca-900 px-4 py-2 text-sm font-medium text-marca-900 hover:bg-slate-50" @click="descargar('csv')">Excel (CSV)</button>
-        <button class="rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700" @click="descargar('pdf')">Imprimir PDF</button>
+      <!-- Exportar: siempre a la vista; se habilita al elegir un reporte -->
+      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3 md:col-span-6">
+        <span class="mr-auto text-xs text-slate-500">{{ clave ? 'Exporta el reporte con los filtros aplicados:' : 'Elige un reporte para exportarlo.' }}</span>
+        <button :disabled="!clave || !!descargando" class="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40" @click="descargar('xlsx')">
+          {{ descargando === 'xlsx' ? 'Generando…' : 'Descargar Excel' }}
+        </button>
+        <button :disabled="!clave || !!descargando" class="rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700 disabled:cursor-not-allowed disabled:opacity-40" @click="descargar('pdf')">
+          {{ descargando === 'pdf' ? 'Generando…' : 'Ver / imprimir PDF' }}
+        </button>
+        <button :disabled="!clave || !!descargando" class="rounded border border-slate-300 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40" @click="descargar('csv')">CSV</button>
       </div>
     </div>
 
@@ -102,7 +121,7 @@ const numero = (v) => (typeof v === 'number' ? v.toLocaleString('es-BO', { maxim
           </tr>
         </tbody>
       </table>
-      <p v-if="reporte.filas.length > 200" class="px-4 py-2 text-xs text-slate-400">Vista previa de 200; el PDF y el CSV traen todos.</p>
+      <p v-if="reporte.filas.length > 200" class="px-4 py-2 text-xs text-slate-400">Vista previa de 200; el Excel, el PDF y el CSV traen todos.</p>
     </div>
   </div>
 </template>

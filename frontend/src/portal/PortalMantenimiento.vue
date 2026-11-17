@@ -50,9 +50,16 @@ async function solicitar() {
   enviando.value = true
   errores.value = {}
   try {
-    await portal.solicitarMantenimiento({ ...form, fecha_deseada: form.fecha_deseada || null })
+    const visita = await portal.solicitarMantenimiento({ ...form, fecha_deseada: form.fecha_deseada || null })
     modal.value = false
-    aviso.value = { tipo: 'ok', texto: 'Solicitud enviada. Nos comunicaremos contigo para coordinar la visita.' }
+    // El sistema clasifica la falla y le fija un plazo de atención.
+    const c = visita.clasificacion
+    aviso.value = {
+      tipo: 'ok',
+      texto: c
+        ? `Solicitud enviada. Prioridad ${c.prioridad} (${c.nombre}): te atenderemos en un máximo de ${c.objetivo_horas} horas${visita.tecnico ? `; ya asignamos al técnico ${visita.tecnico}` : ''}.`
+        : 'Solicitud enviada. Nos comunicaremos contigo para coordinar la visita.',
+    }
     cargar()
   } catch (e) {
     const { mensaje, campos } = leerError(e)
@@ -139,6 +146,7 @@ async function verInforme(v) {
           <div class="text-sm font-semibold text-marca-900">
             {{ v.tipo === 'PREVENTIVO' ? 'Mantenimiento preventivo' : 'Servicio correctivo' }}<span v-if="v.nro_visita"> #{{ v.nro_visita }}</span>
             <span class="font-normal text-slate-500"> · {{ v.edificio }}</span>
+            <span v-if="v.prioridad" class="ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold" :class="v.prioridad === 'P1' ? 'bg-rose-600 text-white' : v.prioridad === 'P2' ? 'bg-orange-500 text-white' : 'bg-amber-200 text-amber-900'">{{ v.prioridad }}</span>
           </div>
           <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" :class="colores[v.situacion]">{{ nombres[v.situacion] ?? v.situacion }}</span>
         </div>

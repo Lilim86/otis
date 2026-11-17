@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\Rules\Unique;
@@ -398,9 +399,22 @@ abstract class CrudController extends Controller
         return Rule::unique($tabla, $columna)->ignore($registro?->getKey());
     }
 
-    /** Regla exists que descarta registros eliminados (en la papelera). */
+    /**
+     * Regla exists para elegir un registro padre: descarta los eliminados (papelera), los dados de baja
+     * y los anulados. Así un módulo no puede apoyarse en algo que ya no está vigente.
+     */
     protected function existe(string $tabla): Exists
     {
-        return Rule::exists($tabla, 'id')->whereNull('deleted_at');
+        $regla = Rule::exists($tabla, 'id')->whereNull('deleted_at');
+        $columnas = Schema::getColumnListing($tabla);
+
+        if (in_array('estado', $columnas, true)) {
+            $regla->where('estado', true);
+        }
+        if (in_array('estado_registro', $columnas, true)) {
+            $regla->where('estado_registro', '!=', 'ANL');
+        }
+
+        return $regla;
     }
 }

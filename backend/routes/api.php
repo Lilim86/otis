@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\CargoController;
 use App\Http\Controllers\Api\CatalogoController;
 use App\Http\Controllers\Api\CitaController;
 use App\Http\Controllers\Api\ClasificadorTecnicoController;
+use App\Http\Controllers\Api\CobradorController;
 use App\Http\Controllers\Api\CobranzaController;
+use App\Http\Controllers\Api\CobrosCobradoresController;
 use App\Http\Controllers\Api\CompraController;
 use App\Http\Controllers\Api\ComprobanteController;
 use App\Http\Controllers\Api\ConciliacionController;
@@ -26,6 +28,7 @@ use App\Http\Controllers\Api\FacturaProveedorController;
 use App\Http\Controllers\Api\FondoRendirController;
 use App\Http\Controllers\Api\GrupoBienController;
 use App\Http\Controllers\Api\InformeController;
+use App\Http\Controllers\Api\IngenieriaController;
 use App\Http\Controllers\Api\IngresoTesoreriaController;
 use App\Http\Controllers\Api\InsumoController;
 use App\Http\Controllers\Api\MantenimientoController;
@@ -39,9 +42,12 @@ use App\Http\Controllers\Api\PaisController;
 use App\Http\Controllers\Api\PersonaController;
 use App\Http\Controllers\Api\PersonalController;
 use App\Http\Controllers\Api\PlanillaController;
+use App\Http\Controllers\Api\PedidoCatalogoController;
+use App\Http\Controllers\Api\PortalCatalogoController;
 use App\Http\Controllers\Api\PortalClienteController;
 use App\Http\Controllers\Api\ProfesionController;
 use App\Http\Controllers\Api\ProvinciaController;
+use App\Http\Controllers\Api\QrCobroController;
 use App\Http\Controllers\Api\RendicionFondoController;
 use App\Http\Controllers\Api\RepuestoController;
 use App\Http\Controllers\Api\RolController;
@@ -87,13 +93,28 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
         'permisos_activos' => (bool) config('sofia.permisos_activos'),
         'es_cliente' => $request->user()->empresa_id !== null,
         'es_tecnico' => $request->user()->personal_id !== null,
+        'es_cobrador' => $request->user()->esCobrador(),
         'empresa' => $request->user()->empresa?->only(['id', 'denominacion']),
     ]);
 
     // Vista del técnico: solo sus visitas.
     Route::middleware('tecnico')->prefix('tecnico')->group(function () {
         Route::get('ruta', [TecnicoController::class, 'ruta']);
+        Route::post('visitas/{id}/iniciar', [TecnicoController::class, 'iniciar']);
         Route::post('visitas/{id}/completar', [TecnicoController::class, 'completar']);
+        Route::get('materiales', [TecnicoController::class, 'materiales']);
+        Route::get('herramientas', [TecnicoController::class, 'herramientas']);
+    });
+
+    // Portal del cobrador: su ruta por los edificios que tiene asignados, sus cobros y la rendición a Tesorería.
+    Route::middleware('cobrador')->prefix('cobrador')->group(function () {
+        Route::get('ruta', [CobradorController::class, 'ruta']);
+        Route::get('cobros', [CobradorController::class, 'cobros']);
+        Route::post('cobros', [CobradorController::class, 'registrar'])->middleware('throttle:60,1');
+        Route::post('cobros/enviar', [CobradorController::class, 'enviar'])->middleware('throttle:20,1');
+        Route::put('cobros/{id}', [CobradorController::class, 'actualizar'])->whereNumber('id');
+        Route::delete('cobros/{id}', [CobradorController::class, 'eliminar'])->whereNumber('id');
+        Route::get('cobros/{id}/{tipo}', [CobradorController::class, 'comprobante'])->whereNumber('id');
     });
 
     // Facturas y recibos: ver, enviar por correo y modelos de diseño.
@@ -121,6 +142,15 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
         Route::get('pagos/{id}/recibo', [PortalClienteController::class, 'reciboPago']);
         Route::get('mantenimientos/{id}/informe', [PortalClienteController::class, 'informeVisita']);
         Route::post('mantenimientos/{id}/firmar', [PortalClienteController::class, 'firmar'])->middleware('throttle:20,1');
+        Route::get('catalogo', [PortalCatalogoController::class, 'catalogo']);
+        Route::get('pedidos', [PortalCatalogoController::class, 'pedidos']);
+        Route::post('pedidos', [PortalCatalogoController::class, 'pedir'])->middleware('throttle:20,1');
+    });
+
+    // Pedidos del catálogo: los crea el cliente desde su portal; la empresa solo los consulta y atiende.
+    Route::middleware('permiso')->group(function () {
+        Route::get('pedidos-catalogo/papelera', [PedidoCatalogoController::class, 'papelera']);
+        Route::apiResource('pedidos-catalogo', PedidoCatalogoController::class)->only(['index', 'show', 'update'])->names('api.pedidos-catalogo');
     });
 
     Route::get('catalogos', [CatalogoController::class, 'index']);
@@ -153,6 +183,19 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
     $modulo('zonas', ZonaController::class);
     $modulo('vias-acceso', ViaAccesoController::class);
 
+    // Aportes de ingeniería: rutas, asignación, confiabilidad y nivel de servicio.
+    Route::middleware('permiso')->prefix('ingenieria')->group(function () {
+        Route::get('resumen', [IngenieriaController::class, 'resumen']);
+        Route::get('rutas', [IngenieriaController::class, 'rutas']);
+        Route::post('rutas/aplicar', [IngenieriaController::class, 'aplicarRutas']);
+        Route::get('asignacion', [IngenieriaController::class, 'compararAsignacion']);
+        Route::post('asignacion/aplicar', [IngenieriaController::class, 'asignar']);
+        Route::get('confiabilidad', [IngenieriaController::class, 'confiabilidad']);
+        Route::post('confiabilidad/{edificio}/adelantar', [IngenieriaController::class, 'adelantar'])->whereNumber('edificio');
+        Route::get('servicio', [IngenieriaController::class, 'servicio']);
+        Route::post('clasificar-falla', [IngenieriaController::class, 'clasificar']);
+    });
+
     // Técnico
     $modulo('clasificadores-tecnicos', ClasificadorTecnicoController::class);
     $modulo('mantenimientos', MantenimientoController::class);
@@ -167,7 +210,12 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
 
     // Recursos humanos
     $modulo('cargos', CargoController::class);
+    // Avisos al gerente de las citas que agenda Secretaría (antes del CRUD para que no se confunda con un {id}).
+    Route::get('citas/notificaciones', [CitaController::class, 'notificaciones'])->middleware('permiso');
+    Route::post('citas/{id}/visto', [CitaController::class, 'marcarVista'])->middleware('permiso');
     $modulo('citas', CitaController::class);
+    Route::get('visitas-mantenimiento/tablero', [VisitaMantenimientoController::class, 'tablero'])->middleware('permiso');
+    Route::post('visitas-mantenimiento/autoasignar', [VisitaMantenimientoController::class, 'autoasignar'])->middleware('permiso');
     Route::post('visitas-mantenimiento/generar', [VisitaMantenimientoController::class, 'generar'])->middleware('permiso');
     Route::get('visitas-mantenimiento/{id}/informe', [VisitaMantenimientoController::class, 'informe'])->middleware('permiso');
     Route::get('pagos-clientes/{id}/comprobante', [PagoClienteController::class, 'comprobante'])->middleware('permiso');
@@ -189,6 +237,8 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
     $modulo('insumos', InsumoController::class, true);
     $modulo('almacenes', AlmacenController::class);
     Route::get('almacenes/{id}/inventario', [AlmacenController::class, 'inventario']);
+    Route::get('movimientos-almacen/herramientas-en-poder', [MovimientoAlmacenController::class, 'herramientasEnPoder'])->middleware('permiso');
+    Route::get('movimientos-almacen/existencias/{insumoId}', [MovimientoAlmacenController::class, 'existencias'])->middleware('permiso');
     $modulo('movimientos-almacen', MovimientoAlmacenController::class, true);
 
     // Compras
@@ -199,9 +249,22 @@ Route::middleware('auth:sanctum')->group(function () use ($modulo) {
     // Financiero
     $modulo('bancos', BancoController::class);
     $modulo('cuentas-bancarias', CuentaBancariaController::class);
+    // Analítica de cobranza (riesgo de mora y flujo de caja): la ve quien puede ver cobranzas.
+    Route::get('cobranzas/analisis', [IngenieriaController::class, 'cobranza'])->middleware('permiso');
+    // QR de cobro: todos lo ven (el cliente en su portal); solo Cobranzas lo cambia.
+    Route::get('pagos-qr', [QrCobroController::class, 'datos']);
+    Route::get('pagos-qr/imagen', [QrCobroController::class, 'imagen']);
+    Route::post('cobranzas/qr', [QrCobroController::class, 'guardar'])->middleware(['permiso', 'throttle:20,1']);
+    Route::delete('cobranzas/qr', [QrCobroController::class, 'restablecer'])->middleware('permiso');
     $modulo('cobranzas', CobranzaController::class, true);
 
     // Tesorería
+    // Cobros que mandan los cobradores: Tesorería los aprueba u observa (antes del CRUD para que no se confunda con un {id}).
+    Route::middleware('permiso')->prefix('ingresos-tesoreria/cobradores')->group(function () {
+        Route::get('/', [CobrosCobradoresController::class, 'index']);
+        Route::post('{id}/aprobar', [CobrosCobradoresController::class, 'aprobar'])->whereNumber('id');
+        Route::post('{id}/observar', [CobrosCobradoresController::class, 'observar'])->whereNumber('id');
+    });
     $modulo('ingresos-tesoreria', IngresoTesoreriaController::class, true);
     $modulo('traspasos-cuentas', TraspasoCuentaController::class, true);
     Route::get('tesoreria/conciliacion', ConciliacionController::class);

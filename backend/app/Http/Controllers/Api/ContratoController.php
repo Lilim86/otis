@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Contrato;
+use App\Models\Edificio;
 use Illuminate\Database\Eloquent\Model;
 
 class ContratoController extends CrudController
@@ -37,7 +38,13 @@ class ContratoController extends CrudController
         return [
             'codigo_contrato' => ['nullable', 'string', 'max:30', $this->unico('contratos', 'codigo_contrato', $registro)],
             'empresa_id' => ['required', $this->existe('empresas')],
-            'edificio_id' => ['required', $this->existe('edificios')],
+            'edificio_id' => ['required', $this->existe('edificios'), function ($atributo, $valor, $fallar) {
+                // Sincronía con Edificios: si el edificio ya tiene un cliente asignado, el contrato debe ser de ese cliente.
+                $dueno = Edificio::find($valor)?->empresa_id;
+                if ($dueno && (int) $dueno !== (int) request('empresa_id')) {
+                    $fallar('Ese edificio pertenece a otro cliente. Elige el cliente del edificio o cambia el edificio.');
+                }
+            }],
             'regional_id' => ['nullable', $this->existe('departamentos')],
             'unidad_oficina' => ['nullable', 'string', 'max:20'],
             'fecha_inicio' => ['required', 'date'],

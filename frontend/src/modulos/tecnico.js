@@ -63,6 +63,7 @@ export const tecnico = [
       { clave: 'fecha_programada', etiqueta: 'Programada', valor: (f) => fecha(f.fecha_programada) },
       { clave: 'fecha_realizada', etiqueta: 'Realizada', valor: (f) => fecha(f.fecha_realizada) },
       { clave: 'situacion', etiqueta: 'Situación', catalogo: 'situaciones_visita' },
+      { clave: 'prioridad', etiqueta: 'Prioridad', valor: (f) => f.prioridad ?? '—' },
       { clave: 'calificacion', etiqueta: 'Nota del cliente', valor: (f) => (f.calificacion ? `${f.calificacion} / 5` : '—') },
     ],
     filtros: [

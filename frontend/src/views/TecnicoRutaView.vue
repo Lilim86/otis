@@ -36,15 +36,33 @@ const titulo = (clave) => (['Atrasadas', 'Hoy', 'Realizadas'].includes(clave) ? 
 const mapa = (v) => (v.latitud && v.longitud ? `https://www.google.com/maps?q=${v.latitud},${v.longitud}` : `https://www.google.com/maps/search/${encodeURIComponent(`${v.edificio} ${v.direccion}`)}`)
 
 // ---- cerrar una visita -----------------------------------------------------------
+const materiales = ref([]) // catálogo con existencias
+const usados = ref([]) // lo que se gastó en esta visita
 const cerrando = ref(null)
 const informe = ref('')
 const error = ref('')
 const enviando = ref(false)
 
-function abrir(v) {
+async function iniciar(v) {
+  try {
+    await tecnico.iniciar(v.id)
+    aviso.value = { tipo: 'ok', texto: 'Visita iniciada: la oficina ya te ve en el edificio.' }
+    await cargar()
+  } catch (e) {
+    aviso.value = { tipo: 'error', texto: leerError(e).mensaje }
+  }
+}
+async function abrir(v) {
   cerrando.value = v
   informe.value = v.informe ?? ''
+  usados.value = []
   error.value = ''
+  materiales.value = await tecnico.materiales().catch(() => [])
+}
+const agregarMaterial = () => usados.value.push({ insumo_id: '', almacen_id: '', cantidad: 1 })
+const almacenesDe = (id) => materiales.value.find((m) => m.id === Number(id))?.almacenes ?? []
+function elegirBien(u) {
+  u.almacen_id = almacenesDe(u.insumo_id)[0]?.almacen_id ?? ''
 }
 async function completar() {
   if (informe.value.trim().length < 10) {
@@ -53,13 +71,14 @@ async function completar() {
   }
   enviando.value = true
   try {
-    await tecnico.completar(cerrando.value.id, informe.value.trim())
+    const lista = usados.value.filter((u) => u.insumo_id).map((u) => ({ insumo_id: u.insumo_id, almacen_id: u.almacen_id, cantidad: u.cantidad }))
+    await tecnico.completar(cerrando.value.id, informe.value.trim(), lista)
     cerrando.value = null
     aviso.value = { tipo: 'ok', texto: 'Visita cerrada. El cliente ya puede ver tu informe y firmar su conformidad.' }
     await cargar()
   } catch (e) {
     const { mensaje, campos } = leerError(e)
-    error.value = campos.informe ?? mensaje
+    error.value = Object.values(campos)[0] ?? mensaje
   } finally {
     enviando.value = false
   }
@@ -86,7 +105,11 @@ async function completar() {
         <li v-for="v in lista" :key="v.id" class="rounded-xl border-l-4 bg-white p-4 shadow-sm" :class="v.situacion === 'REALIZADA' ? 'border-emerald-500' : v.dias < 0 ? 'border-rose-700' : 'border-oro-500'">
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p class="font-semibold text-marca-900">{{ v.edificio }}</p>
+              <p class="font-semibold text-marca-900">
+                <span v-if="v.orden_ruta" class="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-marca-900 text-[10px] text-white" title="Orden en la ruta óptima">{{ v.orden_ruta }}</span>
+                <span v-if="v.prioridad" class="mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold" :class="v.prioridad === 'P1' ? 'bg-rose-600 text-white' : v.prioridad === 'P2' ? 'bg-orange-500 text-white' : 'bg-amber-200 text-amber-900'">{{ v.prioridad }}</span>
+                {{ v.edificio }}
+              </p>
               <p class="text-xs text-slate-500">{{ v.cliente }} · contrato {{ v.contrato }} · {{ v.tipo === 'PREVENTIVO' ? `preventivo #${v.nro_visita}` : 'correctivo' }}</p>
             </div>
             <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">{{ fecha(v.fecha_programada) }}</span>
@@ -100,7 +123,11 @@ async function completar() {
           <ul v-if="v.equipos.length" class="mt-2 text-xs text-slate-500">
             <li v-for="e in v.equipos" :key="e.codigo">🛗 {{ e.descripcion }} <span class="text-slate-400">{{ e.codigo }} {{ e.detalle }}</span></li>
           </ul>
-          <button v-if="v.situacion !== 'REALIZADA'" class="mt-3 rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700" @click="abrir(v)">Cerrar visita con informe</button>
+          <p v-if="v.situacion === 'EN_CURSO'" class="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-medium text-emerald-800"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-500"></span>En curso</p>
+          <div v-if="v.situacion !== 'REALIZADA'" class="mt-3 flex flex-wrap gap-2">
+            <button v-if="v.situacion !== 'EN_CURSO'" class="rounded border border-marca-900 px-4 py-2 text-sm font-medium text-marca-900 hover:bg-marca-50" @click="iniciar(v)">Llegué al edificio</button>
+            <button class="rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700" @click="abrir(v)">Cerrar visita con informe</button>
+          </div>
           <p v-else-if="v.informe" class="mt-2 text-sm text-emerald-800">✔ {{ v.informe }}</p>
         </li>
       </ul>
@@ -114,6 +141,18 @@ async function completar() {
           <textarea v-model="informe" rows="6" placeholder="Ej: Se lubricaron guías y cables, se revisó el freno y el sensor de puertas. Sin novedades." class="mt-1 w-full rounded border px-3 py-2 focus:outline-none" :class="error ? 'border-rose-400' : 'border-slate-300 focus:border-oro-500'"></textarea>
           <span v-if="error" class="text-xs text-red-600">{{ error }}</span>
         </label>
+        <div class="mt-4">
+          <div class="flex items-center justify-between"><span class="text-sm text-slate-600">Materiales usados (se descuentan del almacén)</span><button type="button" class="text-sm text-marca-600 underline" @click="agregarMaterial">+ Agregar</button></div>
+          <div v-for="(u, i) in usados" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
+            <select v-model="u.insumo_id" class="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm" @change="elegirBien(u)">
+              <option value="">— Material —</option>
+              <option v-for="m in materiales" :key="m.id" :value="m.id">{{ m.descripcion }} ({{ m.stock }})</option>
+            </select>
+            <select v-model="u.almacen_id" class="rounded border border-slate-300 px-2 py-1.5 text-sm"><option v-for="a in almacenesDe(u.insumo_id)" :key="a.almacen_id" :value="a.almacen_id">{{ a.almacen }} · {{ a.saldo }}</option></select>
+            <input v-model.number="u.cantidad" type="number" min="0.01" step="any" class="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+            <button type="button" class="text-rose-700" aria-label="Quitar" @click="usados.splice(i, 1)">×</button>
+          </div>
+        </div>
         <div class="mt-5 flex justify-end gap-3">
           <button type="button" class="rounded border border-slate-300 px-4 py-2 text-sm" @click="cerrando = null">Cancelar</button>
           <button :disabled="enviando" class="rounded bg-gradient-to-r from-oro-500 to-oro-400 px-5 py-2 text-sm font-bold text-marca-950 disabled:opacity-60">{{ enviando ? 'Guardando…' : 'Marcar como realizada' }}</button>

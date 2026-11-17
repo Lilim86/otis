@@ -32,6 +32,7 @@ class Edificio extends Auditable
         'latitud',
         'longitud',
         'altura_msnm',
+        'cobrador_id',
     ];
 
     public function contratos()
@@ -62,5 +63,11 @@ class Edificio extends Auditable
     public function contactoTecnico()
     {
         return $this->belongsTo(Persona::class, 'contacto_tecnico_id');
+    }
+
+    /** Cobrador de la empresa que pasa a cobrar a este edificio. */
+    public function cobrador()
+    {
+        return $this->belongsTo(Persona::class, 'cobrador_id');
     }
 }

@@ -17,7 +17,7 @@ class CobranzaController extends CrudController
 
     protected bool $conAprobacion = true;
 
-    protected array $con = ['contrato.empresa', 'cuota', 'cuentaBancaria.banco', 'cobrador'];
+    protected array $con = ['contrato.empresa', 'contrato.edificio', 'cuota', 'cuentaBancaria.banco', 'cobrador'];
 
     protected array $buscar = ['concepto', 'nro_factura', 'nro_recibo', 'comprobante_deposito', 'factura_a_nombre'];
 
@@ -50,7 +50,20 @@ class CobranzaController extends CrudController
             'nro_recibo' => ['nullable', 'string', 'max:40'],
             'cobrado_bs' => ['nullable', 'numeric', 'min:0'],
             'cobrado_usd' => ['nullable', 'numeric', 'min:0'],
+            'tipo_cobro' => ['nullable', Rule::in(array_keys(config('sofia.tipos_cobro')))],
+            'metodo_pago' => ['nullable', Rule::in(array_keys(config('sofia.metodos_pago')))],
+            'nro_cheque' => ['nullable', 'string', 'max:30'],
+            'banco_cheque' => ['nullable', 'string', 'max:80'],
         ];
+    }
+
+    /** Lo que cobra un cobrador lo aprueba Tesorería desde su bandeja: ahí nace el ingreso. */
+    public function aprobar(string $id)
+    {
+        $situacion = Cobranza::whereKey($id)->value('situacion_tesoreria');
+        abort_if($situacion !== null && $situacion !== 'APROBADO', 409, 'Este cobro es de un cobrador: se aprueba en Tesorería → Cobros de cobradores.');
+
+        return parent::aprobar($id);
     }
 
     protected function valoresPorDefecto(): array

@@ -1,5 +1,5 @@
-import { gruposBienes, almacenes, insumos } from '@/services'
-import { regional, bs } from './comun'
+import { gruposBienes, almacenes, insumos, movimientosAlmacen } from '@/services'
+import { regional, bs, fecha } from './comun'
 
 export const almacenesModulos = [
   {
@@ -66,7 +66,7 @@ export const almacenesModulos = [
       { clave: 'descripcion', etiqueta: 'Descripción' },
       { clave: 'tipo', etiqueta: 'Tipo' },
       { clave: 'grupo', etiqueta: 'Grupo', valor: (f) => f.grupo?.nombre ?? '—' },
-      { clave: 'stock_actual', etiqueta: 'Stock' },
+      { clave: 'stock_actual', etiqueta: 'Stock', valor: (f) => (f.stock_minimo > 0 && Number(f.stock_actual) <= Number(f.stock_minimo) ? `${f.stock_actual} ⚠ bajo` : f.stock_actual) },
       { clave: 'precio_compra_bs', etiqueta: 'Compra', valor: (f) => bs(f.precio_compra_bs) },
     ],
     filtros: [],
@@ -81,7 +81,9 @@ export const almacenesModulos = [
           { clave: 'unidad_medida', etiqueta: 'Unidad', tipo: 'select', catalogo: 'unidades_medida' },
           { clave: 'marca', etiqueta: 'Marca' },
           { clave: 'modelo', etiqueta: 'Modelo' },
-          { clave: 'stock_actual', etiqueta: 'Stock actual', tipo: 'numero', requerido: true, defecto: 0 },
+          // El stock cambia solo con movimientos de almacén (ingresos y salidas). Aquí se anota el inicial al crear el bien.
+          { clave: 'stock_actual', etiqueta: 'Stock inicial', tipo: 'numero', defecto: 0, soloAlCrear: true },
+          { clave: 'almacen_id', etiqueta: 'Almacén donde ingresa el stock inicial', tipo: 'select', soloAlCrear: true, remoto: { servicio: 'almacenes', texto: 'nombre' } },
           { clave: 'stock_minimo', etiqueta: 'Stock mínimo', tipo: 'numero' },
           { clave: 'rotacion', etiqueta: 'Rotación', tipo: 'select', catalogo: 'rotacion' },
           { clave: 'caracteristicas', etiqueta: 'Características', tipo: 'textarea' },
@@ -93,6 +95,42 @@ export const almacenesModulos = [
           { clave: 'precio_compra_bs', etiqueta: 'Compra', tipo: 'numero' },
           { clave: 'precio_venta_base_bs', etiqueta: 'Venta base', tipo: 'numero' },
           { clave: 'precio_venta_cliente_bs', etiqueta: 'Venta al cliente', tipo: 'numero' },
+        ],
+      },
+    ],
+  },
+  {
+    clave: 'movimientos-almacen',
+    titulo: 'Movimientos de almacén',
+    servicio: movimientosAlmacen,
+    aprobacion: true,
+    sinEdicion: true,
+    sinEliminar: true,
+    busqueda: 'Buscar por referencia u observación',
+    columnas: [
+      { clave: 'fecha', etiqueta: 'Fecha', valor: (f) => fecha(f.fecha) },
+      { clave: 'tipo', etiqueta: 'Movimiento', valor: (f) => (f.tipo === 'INGRESO' ? '⬇ Ingreso' : '⬆ Salida') },
+      { clave: 'insumo', etiqueta: 'Bien', valor: (f) => f.insumo?.descripcion ?? '—' },
+      { clave: 'cantidad', etiqueta: 'Cantidad' },
+      { clave: 'almacen', etiqueta: 'Almacén', valor: (f) => f.almacen?.nombre ?? '—' },
+      { clave: 'motivo', etiqueta: 'Motivo', catalogo: 'motivos_movimiento' },
+      { clave: 'personal', etiqueta: 'Responsable', valor: (f) => (f.personal ? `${f.personal.nombres} ${f.personal.apellidos ?? ''}`.trim() : '—') },
+    ],
+    filtros: [{ clave: 'motivo', etiqueta: 'Motivo', catalogo: 'motivos_movimiento' }],
+    secciones: [
+      {
+        titulo: 'Movimiento',
+        campos: [
+          { clave: 'tipo', etiqueta: 'Tipo', tipo: 'select', requerido: true, opciones: [{ valor: 'INGRESO', texto: 'Ingreso (entra al almacén)' }, { valor: 'SALIDA', texto: 'Salida (sale del almacén)' }] },
+          { clave: 'motivo', etiqueta: 'Motivo', tipo: 'select', catalogo: 'motivos_movimiento' },
+          { clave: 'almacen_id', etiqueta: 'Almacén', tipo: 'select', requerido: true, remoto: { servicio: 'almacenes', texto: 'nombre' } },
+          { clave: 'insumo_id', etiqueta: 'Bien o herramienta', tipo: 'select', requerido: true, remoto: { servicio: 'insumos', texto: 'descripcion' } },
+          { clave: 'cantidad', etiqueta: 'Cantidad', tipo: 'numero', requerido: true },
+          { clave: 'costo_unitario_bs', etiqueta: 'Costo unitario (Bs)', tipo: 'numero' },
+          { clave: 'fecha', etiqueta: 'Fecha', tipo: 'fecha', requerido: true },
+          { clave: 'personal_id', etiqueta: 'Quién retira o devuelve (obligatorio en préstamos y devoluciones)', tipo: 'select', remoto: { servicio: 'personal', texto: 'nombres' } },
+          { clave: 'referencia', etiqueta: 'Referencia' },
+          { clave: 'observacion', etiqueta: 'Observación', tipo: 'textarea' },
         ],
       },
     ],

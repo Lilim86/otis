@@ -18,6 +18,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $this->call([GeografiaBaseSeeder::class, GrupoBienSeeder::class, PermisosSeeder::class]);
+        $this->call([GeografiaBaseSeeder::class, GrupoBienSeeder::class, PermisosSeeder::class, CatalogoAscensoresSeeder::class]);
     }
 }

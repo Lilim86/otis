@@ -3,7 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Cita;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class CitaController extends CrudController
@@ -19,6 +24,37 @@ class CitaController extends CrudController
     protected array $fechas = ['fecha_inicio'];
 
     protected array $orden = [['fecha_inicio', 'asc']];
+
+    /** Citas que agendó Secretaría y el gerente todavía no vio. Las más recientes primero. */
+    public function notificaciones(Request $request): JsonResponse
+    {
+        $this->exigirGerente($request);
+
+        $nuevas = Cita::with(['empresa', 'edificio'])
+            ->whereNull('vista_gerente_en')
+            ->where('estado', true)
+            ->where('tipo', '!=', 'PEDIDO') // los pedidos del catálogo ya avisan por su cuenta
+            ->where('situacion', '!=', 'CANCELADA')
+            // La agenda guarda la hora local: se compara contra el día de Bolivia, no el del servidor.
+            ->whereDate('fecha_fin', '>=', Carbon::now(config('sofia.zona_horaria'))->toDateString())
+            ->whereIn('creado_por', User::whereHas('roles', fn ($rol) => $rol->where('name', 'Secretaría'))->select('id'));
+
+        return response()->json(['total' => (clone $nuevas)->count(), 'data' => $nuevas->orderByDesc('id')->limit(5)->get()]);
+    }
+
+    public function marcarVista(Request $request, string $id): Response
+    {
+        $this->exigirGerente($request);
+        Cita::findOrFail($id)->forceFill(['vista_gerente_en' => now()])->save();
+
+        return response()->noContent();
+    }
+
+    /** Estos avisos son para el gerente: el Super Administrador y el rol Administrador. */
+    private function exigirGerente(Request $request): void
+    {
+        abort_unless($request->user()->id === 1 || $request->user()->hasRole('Administrador'), 403, 'Este aviso es solo para el gerente.');
+    }
 
     protected function valoresPorDefecto(): array
     {

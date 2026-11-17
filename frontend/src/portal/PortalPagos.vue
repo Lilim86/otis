@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { portal, leerError } from '@/services'
 import { bs, fecha } from '@/modulos/comun'
+import QrCobro from '@/components/QrCobro.vue'
 
 const cuenta = ref(null)
 const cuotas = ref([])
@@ -113,6 +114,12 @@ const chip = {
       <p class="mt-3 text-xs text-marca-200/80">Cuenta de pruebas: no hagas transferencias reales hasta que la empresa confirme su cuenta definitiva.</p>
     </div>
     <p v-else class="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">Los pagos por transferencia todavía no están habilitados.</p>
+
+    <!-- QR de cobro: lo publica Cobranzas -->
+    <div class="mt-4 rounded-2xl bg-white p-5 shadow-sm">
+      <QrCobro />
+      <p class="mt-3 text-xs text-slate-500">Escanéalo desde la app de tu banco. Después de pagar, usa «Ya transferí» en la cuota para avisarnos.</p>
+    </div>
 
     <!-- Cuotas -->
     <h2 class="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Estado de cuenta</h2>

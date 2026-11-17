@@ -11,7 +11,7 @@ use App\Models\Equipo;
 use App\Models\PagoCliente;
 use App\Models\VisitaMantenimiento;
 use App\Services\ComprobanteService;
-use App\Services\CronogramaService;
+use App\Services\Ingenieria\PrioridadFallasService;
 use App\Services\UbicacionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -126,6 +126,7 @@ class PortalClienteController extends Controller
             'situacion' => $v->situacion, 'tecnico' => $v->tecnico ? trim("{$v->tecnico->nombres} {$v->tecnico->apellidos}") : null,
             'descripcion' => $v->descripcion, 'informe' => $v->informe, 'calificacion' => $v->calificacion, 'comentario_cliente' => $v->comentario_cliente,
             'firmada' => $v->firma_cliente !== null, 'firmado_por' => $v->firmado_por,
+            'prioridad' => $v->prioridad, 'objetivo_respuesta_en' => $v->objetivo_respuesta_en?->toIso8601String(),
         ];
     }
 
@@ -149,8 +150,11 @@ class PortalClienteController extends Controller
         return response()->json(['data' => $visitas->map(fn ($v) => $this->visita($v))->values()]);
     }
 
-    /** El cliente pide una visita correctiva (falla, ruido, ascensor detenido…). */
-    public function solicitar(Request $request, CronogramaService $cronograma): JsonResponse
+    /**
+     * El cliente pide una visita correctiva (falla, ruido, ascensor detenido…). El sistema la clasifica
+     * por gravedad (P1..P4), le fija el plazo de atención y, si es urgente, le asigna el técnico más cercano.
+     */
+    public function solicitar(Request $request, PrioridadFallasService $triage): JsonResponse
     {
         $d = $request->validate([
             'contrato_id' => ['required', 'integer'],
@@ -162,14 +166,21 @@ class PortalClienteController extends Controller
         $contrato = $this->contratoPropio($request, $d['contrato_id']);
         abort_unless(Carbon::parse($contrato->fecha_fin)->gte(today()), 422, 'El contrato ya no está vigente.');
 
-        $fecha = isset($d['fecha_deseada']) ? Carbon::parse($d['fecha_deseada']) : $cronograma->sumarDiasHabiles(today(), 1);
+        $clase = $triage->clasificar($d['descripcion'], (bool) ($d['urgente'] ?? false));
+        $fecha = $triage->fechaAtencion($clase['prioridad'], $d['fecha_deseada'] ?? null);
 
         $visita = VisitaMantenimiento::create([
             'contrato_id' => $contrato->id, 'tipo' => 'CORRECTIVO', 'situacion' => 'SOLICITADA', 'fecha_programada' => $fecha->toDateString(),
             'descripcion' => (($d['urgente'] ?? false) ? '[URGENTE] ' : '').$d['descripcion'], 'solicitada_por' => $request->user()->id,
+            'prioridad' => $clase['prioridad'], 'objetivo_respuesta_en' => now()->addHours($clase['objetivo_horas']),
+            'motivo_prioridad' => $clase['palabras'] ? 'Detectado: '.implode(', ', $clase['palabras']) : 'Sin señales de gravedad',
         ]);
 
-        return response()->json(['data' => $this->visita($visita->load('contrato.edificio'))], 201);
+        if (in_array($clase['prioridad'], ['P1', 'P2'], true) && ($tecnico = $triage->tecnicoMasCercano($visita->load('contrato.edificio')))) {
+            $visita->update(['tecnico_id' => $tecnico, 'asignada_automaticamente' => true]);
+        }
+
+        return response()->json(['data' => $this->visita($visita->load(['contrato.edificio', 'tecnico'])) + ['clasificacion' => $clase]], 201);
     }
 
     /** Conformidad del cliente con una visita realizada: 1 a 5 y un comentario. */

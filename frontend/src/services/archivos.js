@@ -47,3 +47,21 @@ export const comprobantes = {
 
 export const informeVisitaPdf = (visitaId) => abrirArchivo(`/api/visitas-mantenimiento/${visitaId}/informe`)
 export const comprobantePagoCliente = (pagoId) => abrirArchivo(`/api/pagos-clientes/${pagoId}/comprobante`)
+
+// ---- QR de cobro (lo administra Cobranzas y lo ve el cliente en su portal) -------
+export const qrCobro = {
+  datos: () => http.get('/api/pagos-qr').then((r) => r.data.data),
+  /** URL local (blob) de la imagen: la ruta exige sesión, así que no sirve un <img src> directo. */
+  imagen: async () => URL.createObjectURL((await pedirArchivo('/api/pagos-qr/imagen')).data),
+  descargar: () => bajarArchivo('/api/pagos-qr/imagen', 'QR-pago-CGI.png'),
+  /** datos: { banco, cuenta, titular, glosa, monto, vence, uso_unico, prueba, qr (File opcional) } */
+  guardar: (datos) => {
+    const form = new FormData()
+    for (const [k, v] of Object.entries(datos)) {
+      if (v === null || v === undefined || v === '') continue
+      form.append(k, typeof v === 'boolean' ? (v ? '1' : '0') : v)
+    }
+    return http.post('/api/cobranzas/qr', form).then((r) => r.data)
+  },
+  restablecer: () => http.delete('/api/cobranzas/qr').then((r) => r.data),
+}

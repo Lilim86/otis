@@ -27,7 +27,22 @@ class Cobranza extends Auditable
         'fecha_facturacion',
         'nit_facturado',
         'factura_a_nombre',
+        'tipo_cobro',
+        'metodo_pago',
+        'nro_cheque',
+        'banco_cheque',
     ];
+
+    protected function casts(): array
+    {
+        return ['enviado_en' => 'datetime', 'revisado_en' => 'datetime'];
+    }
+
+    /** Quien de Tesorería aprobó u observó el cobro. */
+    public function revisor()
+    {
+        return $this->belongsTo(User::class, 'revisado_por');
+    }
 
     public function contrato()
     {

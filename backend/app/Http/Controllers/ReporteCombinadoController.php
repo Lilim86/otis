@@ -3,12 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Services\ReporteCombinadoService;
+use App\Support\Xlsx;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/** Reportes combinados de tablas, en pantalla (JSON), CSV y PDF. Sirve a la API y a las pantallas web. */
+/** Reportes combinados de tablas, en pantalla (JSON), Excel (XLSX), CSV y PDF. Sirve a la API y a las pantallas web. */
 class ReporteCombinadoController extends Controller
 {
     public function __construct(private ReporteCombinadoService $reportes) {}
@@ -21,13 +22,14 @@ class ReporteCombinadoController extends Controller
     public function ver(Request $request, string $clave, ?string $formato = null): Response
     {
         $formato ??= $request->query('formato', 'json');
-        abort_unless(in_array($formato, ['json', 'csv', 'pdf'], true), 422, 'Formato no válido.');
+        abort_unless(in_array($formato, ['json', 'xlsx', 'csv', 'pdf'], true), 422, 'Formato no válido.');
         abort_unless(isset(ReporteCombinadoService::CATALOGO[$clave]), 404, 'Reporte no encontrado.');
         abort_unless($this->reportes->puede($request->user(), $clave), 403, 'No tienes acceso a este reporte.');
 
         $reporte = $this->reportes->generar($clave, $this->filtros($request));
 
         return match ($formato) {
+            'xlsx' => $this->xlsx($reporte, $request),
             'csv' => $this->csv($reporte),
             'pdf' => $this->pdf($reporte, $request),
             default => response()->json(['data' => $reporte]),
@@ -57,6 +59,18 @@ class ReporteCombinadoController extends Controller
         return Pdf::loadView('reportes.combinado', [
             'reporte' => $reporte, 'filtros' => $this->filtros($request), 'emitidoPor' => $request->user()->name ?: $request->user()->username,
         ])->setPaper($ancho > 12 ? 'a3' : 'letter', 'landscape')->stream("{$reporte['clave']}_".today()->format('Ymd').'.pdf');
+    }
+
+    private function xlsx(array $reporte, Request $request): Response
+    {
+        $filtros = collect($this->filtros($request))->filter()->map(fn ($v, $k) => "{$k}: {$v}")->implode(' · ');
+        $subtitulo = 'Emitido el '.now()->format('d/m/Y H:i').' por '.($request->user()->name ?: $request->user()->username).($filtros ? " · {$filtros}" : '');
+        $filas = array_map(fn ($f) => array_map(fn ($v) => is_string($v) ? $this->celda($v) : $v, $f), $reporte['filas']);
+
+        return response(Xlsx::crear($reporte['titulo'], $reporte['columnas'], $filas, $reporte['sumas'] ?? [], $subtitulo), 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$reporte['clave'].'_'.today()->format('Ymd').'.xlsx"',
+        ]);
     }
 
     private function csv(array $reporte): Response

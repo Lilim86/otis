@@ -33,6 +33,7 @@ class UsuarioController extends CrudController
             'email' => [...$presencia, 'email', 'max:255', $this->unico('users', 'email', $registro)],
             'empresa_id' => ['nullable', $this->existe('empresas')],
             'personal_id' => ['nullable', $this->existe('personal')],
+            'persona_id' => ['nullable', $this->existe('personas')->where('tipo_persona', 'COBRADOR')],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['string', Rule::exists('roles', 'name')],
         ];
@@ -65,6 +66,7 @@ class UsuarioController extends CrudController
                 'email' => $datos['email'],
                 'empresa_id' => $datos['empresa_id'] ?? null,
                 'personal_id' => $datos['personal_id'] ?? null,
+                'persona_id' => $datos['persona_id'] ?? null,
                 'password' => Hash::make($passwordTemporal),
             ]);
             $usuario->syncRoles($datos['roles'] ?? []);

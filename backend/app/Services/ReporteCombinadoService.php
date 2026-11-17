@@ -17,9 +17,12 @@ use App\Models\Insumo;
 use App\Models\Mantenimiento;
 use App\Models\MovimientoAlmacen;
 use App\Models\OrdenMantenimiento;
+use App\Models\PagoCliente;
+use App\Models\PedidoCatalogo;
 use App\Models\Persona;
 use App\Models\Personal;
 use App\Models\User;
+use App\Models\VisitaMantenimiento;
 use App\Models\Zona;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -53,6 +56,9 @@ class ReporteCombinadoService
         'cuentas_bancarias' => ['Cuentas bancarias con banco y total cobrado', 'Financiero', ['cuentas-bancarias']],
         'personal' => ['Personal con cargo y profesión', 'Recursos Humanos', ['personal']],
         'agenda' => ['Agenda del gerente con empresa, edificio y ubicación', 'Secretaría', ['citas']],
+        'visitas_mantenimiento' => ['Visitas de mantenimiento con cliente, edificio y técnico', 'Técnico', ['visitas-mantenimiento']],
+        'pagos_clientes' => ['Pagos de clientes con contrato, edificio y cuota', 'Financiero', ['pagos-clientes']],
+        'pedidos_catalogo' => ['Pedidos del catálogo con cliente, edificio y producto', 'Comercial', ['pedidos-catalogo']],
     ];
 
     private UbicacionResolver $ubicacion;
@@ -390,6 +396,43 @@ class ReporteCombinadoService
         ])->all();
 
         return ['columnas' => ['fecha' => 'Fecha', 'contrato' => 'Contrato', 'cliente' => 'Cliente', 'edificio' => 'Edificio'] + UbicacionResolver::COLUMNAS + ['concepto' => 'Concepto', 'cuota' => 'Cuota', 'nro_factura' => 'Factura', 'nro_recibo' => 'Recibo', 'monto_facturado' => 'Facturado (Bs)', 'cobrado_bs' => 'Cobrado (Bs)', 'cobrado_usd' => 'Cobrado (USD)', 'banco' => 'Banco', 'cuenta' => 'Cuenta', 'cobrador' => 'Cobrador', 'registro' => 'Registro'], 'filas' => $filas];
+    }
+
+    private function reporteVisitasMantenimiento(): array
+    {
+        $filas = VisitaMantenimiento::with(['contrato.empresa', 'contrato.edificio', 'tecnico'])->orderByDesc('fecha_programada')->get()->map(fn ($v) => [
+            'programada' => $this->fecha($v->fecha_programada), 'realizada' => $this->fecha($v->fecha_realizada), 'nro_visita' => $v->nro_visita, 'tipo' => $v->tipo,
+            'situacion' => config('sofia.situaciones_visita')[$v->situacion] ?? $v->situacion, 'prioridad' => $v->prioridad,
+            'contrato' => $v->contrato?->codigo_contrato, 'cliente' => $v->contrato?->empresa?->denominacion, 'edificio' => $v->contrato?->edificio?->denominacion,
+        ] + $this->ubic($v->contrato?->edificio) + [
+            'tecnico' => $v->tecnico ? trim("{$v->tecnico->nombres} {$v->tecnico->apellidos}") : null, 'calificacion' => $v->calificacion, '_fecha' => $this->fecha($v->fecha_programada),
+        ])->all();
+
+        return ['columnas' => ['programada' => 'Programada', 'realizada' => 'Realizada', 'nro_visita' => 'Visita', 'tipo' => 'Tipo', 'situacion' => 'Situación', 'prioridad' => 'Prioridad', 'contrato' => 'Contrato', 'cliente' => 'Cliente', 'edificio' => 'Edificio'] + UbicacionResolver::COLUMNAS + ['tecnico' => 'Técnico', 'calificacion' => 'Calificación'], 'filas' => $filas];
+    }
+
+    private function reportePagosClientes(): array
+    {
+        $filas = PagoCliente::with(['empresa', 'contrato.edificio', 'cuota'])->orderByDesc('fecha_pago')->get()->map(fn ($p) => [
+            'fecha' => $this->fecha($p->fecha_pago), 'cliente' => $p->empresa?->denominacion, 'contrato' => $p->contrato?->codigo_contrato, 'edificio' => $p->contrato?->edificio?->denominacion,
+        ] + $this->ubic($p->contrato?->edificio) + [
+            'cuota' => $p->cuota?->nro_cuota, 'monto_bs' => (float) $p->monto_bs, 'nro_transaccion' => $p->nro_transaccion, 'banco_origen' => $p->banco_origen,
+            'registro' => $p->estado_registro, '_fecha' => $this->fecha($p->fecha_pago),
+        ])->all();
+
+        return ['columnas' => ['fecha' => 'Fecha', 'cliente' => 'Cliente', 'contrato' => 'Contrato', 'edificio' => 'Edificio'] + UbicacionResolver::COLUMNAS + ['cuota' => 'Cuota', 'monto_bs' => 'Monto (Bs)', 'nro_transaccion' => 'Transacción', 'banco_origen' => 'Banco de origen', 'registro' => 'Registro'], 'filas' => $filas];
+    }
+
+    private function reportePedidosCatalogo(): array
+    {
+        $filas = PedidoCatalogo::with(['producto', 'empresa', 'edificio'])->orderByDesc('fecha_compromiso')->get()->map(fn ($p) => [
+            'pedido' => $p->codigo, 'fecha' => $this->fecha($p->created_at), 'compromiso' => $this->fecha($p->fecha_compromiso), 'cliente' => $p->empresa?->denominacion, 'edificio' => $p->edificio?->denominacion,
+        ] + $this->ubic($p->edificio) + [
+            'categoria' => $p->producto?->categoria, 'producto' => $p->producto?->nombre, 'cantidad' => $p->cantidad, 'situacion' => config('sofia.situaciones_pedido')[$p->situacion] ?? $p->situacion,
+            'observaciones' => $p->observaciones, '_fecha' => $this->fecha($p->created_at),
+        ])->all();
+
+        return ['columnas' => ['pedido' => 'Pedido', 'fecha' => 'Fecha', 'compromiso' => 'Atender hasta', 'cliente' => 'Cliente', 'edificio' => 'Edificio'] + UbicacionResolver::COLUMNAS + ['categoria' => 'Categoría', 'producto' => 'Producto', 'cantidad' => 'Cantidad', 'situacion' => 'Situación', 'observaciones' => 'Observaciones'], 'filas' => $filas];
     }
 
     private function reporteCuotasPendientes(): array

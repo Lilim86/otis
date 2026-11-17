@@ -1,17 +1,33 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { ref, computed, watch } from 'vue'
+import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
 import { useSesionStore } from '@/stores/sesion'
 import { menu } from '@/modulos'
+import NotificacionesPedidos from '@/components/NotificacionesPedidos.vue'
 
 const sesion = useSesionStore()
 const router = useRouter()
+const route = useRoute()
 const menuAbierto = ref(false)
 
-// Cada persona ve solo los módulos que su rol puede consultar.
+// Cada persona ve solo los módulos y pantallas que su rol puede consultar.
 const menuVisible = computed(() =>
-  menu.map((g) => ({ ...g, items: g.items.filter((m) => sesion.puede(`${m.clave}.ver`)) })).filter((g) => g.items.length),
+  menu
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((m) => sesion.puede(`${m.clave}.ver`)),
+      enlaces: (g.enlaces ?? []).filter((e) => (e.soloTecnico ? sesion.usuario?.es_tecnico : sesion.puede(e.permiso))),
+    }))
+    .filter((g) => g.items.length || g.enlaces.length),
 )
+
+// Los grupos se despliegan solos: se abre el que contiene la pantalla actual (p. ej. "Técnico" al entrar a Mi ruta).
+const abiertos = ref(new Set())
+const grupoActual = computed(() =>
+  menuVisible.value.find((g) => g.items.some((m) => route.name === 'modulo' && route.params.clave === m.clave) || g.enlaces.some((e) => e.ruta === route.name))?.grupo,
+)
+watch(grupoActual, (g) => g && abiertos.value.add(g), { immediate: true })
+const alternar = (g) => (abiertos.value.has(g) ? abiertos.value.delete(g) : abiertos.value.add(g))
 const rol = computed(() => (sesion.usuario?.es_super_admin ? 'Super Administrador' : sesion.usuario?.roles?.join(', ') || 'Sin rol'))
 
 async function salir() {
@@ -25,7 +41,10 @@ async function salir() {
     <!-- Barra superior en celular: los técnicos usan el sistema en campo -->
     <header class="flex items-center justify-between bg-marca-900 px-4 py-3 text-oro-200 lg:hidden">
       <span class="font-bold tracking-wide">LILIM · OTIS</span>
-      <button class="rounded p-2 hover:bg-marca-700" aria-label="Abrir menú" @click="menuAbierto = !menuAbierto">☰</button>
+      <div class="flex items-center gap-1">
+        <NotificacionesPedidos v-if="sesion.puede('pedidos-catalogo.ver')" />
+        <button class="rounded p-2 hover:bg-marca-700" aria-label="Abrir menú" @click="menuAbierto = !menuAbierto">☰</button>
+      </div>
     </header>
 
     <aside
@@ -46,16 +65,6 @@ async function salir() {
         </RouterLink>
 
         <RouterLink
-          v-if="sesion.usuario?.es_tecnico"
-          :to="{ name: 'tecnico-ruta' }"
-          class="block rounded px-3 py-2 hover:bg-white/10"
-          active-class="bg-oro-500/20 text-oro-200"
-          @click="menuAbierto = false"
-        >
-          Mi ruta
-        </RouterLink>
-
-        <RouterLink
           :to="{ name: 'reportes' }"
           class="block rounded px-3 py-2 hover:bg-white/10"
           active-class="bg-oro-500/20 text-oro-200"
@@ -65,23 +74,43 @@ async function salir() {
         </RouterLink>
 
         <div v-for="grupo in menuVisible" :key="grupo.grupo">
-          <p class="px-3 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-oro-400/80">{{ grupo.grupo }}</p>
-          <RouterLink
-            v-for="modulo in grupo.items"
-            :key="modulo.clave"
-            :to="{ name: 'modulo', params: { clave: modulo.clave } }"
-            class="block rounded px-3 py-2 hover:bg-white/10"
-            active-class="bg-oro-500/20 text-oro-200"
-            @click="menuAbierto = false"
+          <button
+            class="flex w-full items-center justify-between rounded px-3 pb-1 pt-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-oro-400/80 hover:text-oro-300"
+            :aria-expanded="abiertos.has(grupo.grupo)"
+            @click="alternar(grupo.grupo)"
           >
-            {{ modulo.titulo }}
-          </RouterLink>
+            {{ grupo.grupo }}
+            <span class="transition-transform" :class="abiertos.has(grupo.grupo) ? 'rotate-90' : ''">›</span>
+          </button>
+          <div v-show="abiertos.has(grupo.grupo)">
+            <RouterLink
+              v-for="enlace in grupo.enlaces"
+              :key="enlace.ruta"
+              :to="{ name: enlace.ruta }"
+              class="block rounded px-3 py-2 hover:bg-white/10"
+              active-class="bg-oro-500/20 text-oro-200"
+              @click="menuAbierto = false"
+            >
+              {{ enlace.titulo }}
+            </RouterLink>
+            <RouterLink
+              v-for="modulo in grupo.items"
+              :key="modulo.clave"
+              :to="{ name: 'modulo', params: { clave: modulo.clave } }"
+              class="block rounded px-3 py-2 hover:bg-white/10"
+              active-class="bg-oro-500/20 text-oro-200"
+              @click="menuAbierto = false"
+            >
+              {{ modulo.titulo }}
+            </RouterLink>
+          </div>
         </div>
       </nav>
     </aside>
 
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="hidden items-center justify-end gap-4 border-b-2 border-oro-400 bg-white px-6 py-3 lg:flex">
+        <NotificacionesPedidos v-if="sesion.puede('pedidos-catalogo.ver')" class="text-marca-900" />
         <div class="text-right leading-tight">
           <div class="text-sm font-semibold text-marca-900">{{ sesion.usuario?.name || sesion.usuario?.username }}</div>
           <div class="text-xs text-slate-500">{{ rol }}</div>

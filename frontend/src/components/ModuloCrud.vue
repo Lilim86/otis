@@ -82,14 +82,28 @@ async function ejecutar(accion, confirmacion, exito) {
 }
 
 // Acciones propias de un módulo (ej.: imprimir el recibo de una cobranza).
-const accionesVisibles = (fila) => (props.modulo.accionesFila ?? []).filter((a) => (!a.visible || a.visible(fila)) && (!a.permiso || puede(a.permiso)))
+const accionesVisibles = (fila) => (props.modulo.accionesFila ?? []).filter((a) => (!a.visible || a.visible(fila)) && (!a.permiso || sesion.puede(a.permiso)))
 async function accionFila(accion, fila) {
   try {
     const mensaje = await accion.ejecutar(fila)
     if (mensaje) avisar('ok', mensaje)
+    if (accion.recargar) await cargar(meta.value.current_page)
   } catch (e) {
     const { mensaje, campos } = leerError(e)
     avisar('error', Object.values(campos)[0] ?? mensaje)
+  }
+}
+
+// ---- exportar el reporte combinado que corresponde a este módulo ------------------
+const exportando = ref('')
+async function exportar(formato) {
+  exportando.value = formato
+  try {
+    await servicios.descargarReporte(props.modulo.reporte, formato, consulta.q ? { q: consulta.q } : {})
+  } catch (e) {
+    avisar('error', leerError(e).mensaje)
+  } finally {
+    exportando.value = ''
   }
 }
 
@@ -113,6 +127,8 @@ const cambiarEstado = (f) =>
 
 // ---- formulario ----------------------------------------------------------------
 const campos = computed(() => props.modulo.secciones.flatMap((s) => s.campos))
+// Hay campos que solo existen al crear (ej. stock inicial): al editar no se muestran ni se envían.
+const visibleEn = (c) => !(c.soloAlCrear && editando.value)
 const form = reactive({})
 const errores = ref({})
 const modal = ref(false)
@@ -122,7 +138,7 @@ const opciones = reactive({}) // opciones de los selects remotos, por campo
 
 function vaciarFormulario(fila = null) {
   for (const c of campos.value) {
-    let valor = fila ? (fila[c.clave] ?? '') : (c.defecto ?? '')
+    let valor = fila ? (c.valorInicial?.(fila) ?? fila[c.clave] ?? '') : (c.defecto ?? '')
     if (c.arreglo && Array.isArray(valor)) valor = valor[0] ?? '' // un solo valor que la API recibe como lista
     // datetime-local necesita AAAA-MM-DDTHH:mm
     form[c.clave] = c.tipo === 'fechahora' && valor ? String(valor).replace(' ', 'T').slice(0, 16) : valor
@@ -130,23 +146,34 @@ function vaciarFormulario(fila = null) {
 }
 
 async function cargarOpciones(campo) {
-  const { servicio: nombre, depende } = campo.remoto
+  const { servicio: nombre, depende, tambien = [], filtrar } = campo.remoto
   if (depende && !form[depende]) {
     opciones[campo.clave] = []
     return
   }
   try {
-    opciones[campo.clave] = await servicios[nombre].todos({ ...campo.remoto.params, ...(depende ? { [depende]: form[depende] } : {}) })
+    const filtros = Object.fromEntries([depende, ...tambien].filter(Boolean).map((clave) => [clave, form[clave]]))
+    const lista = await servicios[nombre].todos({ ...campo.remoto.params, ...filtros })
+    opciones[campo.clave] = filtrar ? lista.filter((o) => filtrar(o, form)) : lista
   } catch {
     opciones[campo.clave] = []
   }
 }
 
-/** Al cambiar un campo, los que dependen de él (en cadena) se vacían y recargan. */
+/**
+ * Al cambiar un campo se completan los datos que dependen de la opción elegida y los campos
+ * hijos (en cadena) se vacían y recargan; si un hijo con `autoUnico` tiene una sola opción, se elige sola.
+ */
 async function alCambiar(campo) {
+  if (campo.alElegir) {
+    const clave = campo.remoto?.valor ?? 'id'
+    campo.alElegir(form, (opciones[campo.clave] ?? []).find((o) => String(o[clave]) === String(form[campo.clave])))
+  }
   for (const hijo of campos.value.filter((c) => c.remoto?.depende === campo.clave)) {
     form[hijo.clave] = ''
     await cargarOpciones(hijo)
+    const disponibles = opcionesDe(hijo)
+    if (hijo.remoto.autoUnico && disponibles.length === 1) form[hijo.clave] = disponibles[0].valor
     await alCambiar(hijo)
   }
 }
@@ -159,19 +186,26 @@ async function abrir(fila = null) {
   await Promise.all(campos.value.filter((c) => c.remoto).map(cargarOpciones))
 }
 
+// `texto` puede ser un campo o una función; varias filas con el mismo valor se muestran una sola vez.
+function opcionesRemotas(campo) {
+  const { valor = 'id', texto } = campo.remoto
+  const lista = (opciones[campo.clave] ?? []).map((o) => ({ valor: o[valor], texto: typeof texto === 'function' ? texto(o) : o[texto] }))
+  return [...new Map(lista.map((o) => [o.valor, o])).values()]
+}
+
 const opcionesDe = (campo) =>
   campo.opciones
     ? campo.opciones
     : campo.catalogo
     ? (catalogos.datos[campo.catalogo] ?? []).map((o) => ({ valor: o.codigo, texto: o.etiqueta }))
-    : (opciones[campo.clave] ?? []).map((o) => ({ valor: o[campo.remoto.valor ?? 'id'], texto: o[campo.remoto.texto] }))
+    : opcionesRemotas(campo)
 
 async function guardar() {
   guardando.value = true
   errores.value = {}
   try {
     const datos = Object.fromEntries(
-      campos.value.map((c) => [c.clave, c.arreglo ? (form[c.clave] === '' ? [] : [form[c.clave]]) : form[c.clave] === '' ? null : form[c.clave]]),
+      campos.value.filter((c) => visibleEn(c) && !c.soloFormulario).map((c) => [c.clave, c.arreglo ? (form[c.clave] === '' ? [] : [form[c.clave]]) : form[c.clave] === '' ? null : form[c.clave]]),
     )
     if (editando.value) await servicio.actualizar(editando.value, datos)
     else await servicio.crear(datos)
@@ -195,6 +229,14 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', fechahora: 'datet
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-xl font-bold text-marca-900">{{ modulo.titulo }}</h1>
       <component :is="modulo.cabecera" v-if="modulo.cabecera" @hecho="cargar(1)" />
+      <div v-if="modulo.reporte && puede('ver')" class="ml-auto flex gap-2">
+        <button :disabled="!!exportando" title="Reporte combinado con las tablas relacionadas" class="rounded bg-marca-900 px-3 py-2 text-sm font-medium text-white hover:bg-marca-700 disabled:opacity-40" @click="exportar('pdf')">
+          {{ exportando === 'pdf' ? 'Generando…' : 'PDF' }}
+        </button>
+        <button :disabled="!!exportando" title="Reporte combinado con las tablas relacionadas" class="rounded bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-40" @click="exportar('xlsx')">
+          {{ exportando === 'xlsx' ? 'Generando…' : 'Excel' }}
+        </button>
+      </div>
       <button
         v-if="vista === 'activos' && puede('crear') && !modulo.sinFormulario"
         class="rounded bg-marca-900 px-4 py-2 text-sm font-medium text-white hover:bg-marca-700"
@@ -285,11 +327,11 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', fechahora: 'datet
               </template>
               <template v-else>
                 <button v-for="a in accionesVisibles(fila)" :key="a.etiqueta" class="mr-2 text-oro-700 hover:underline" @click="accionFila(a, fila)">{{ a.etiqueta }}</button>
-                <button v-if="puede('editar') && fila.estado_registro !== 'ANL' && !modulo.sinFormulario" class="mr-2 text-marca-600 hover:underline" @click="abrir(fila)">Editar</button>
+                <button v-if="puede('editar') && fila.estado_registro !== 'ANL' && !modulo.sinFormulario && !modulo.sinEdicion" class="mr-2 text-marca-600 hover:underline" @click="abrir(fila)">Editar</button>
                 <button v-if="modulo.aprobacion && fila.estado_registro === 'REG' && puede('aprobar')" class="mr-2 text-emerald-700 hover:underline" @click="aprobar(fila)">{{ etiqueta('aprobar', 'Aprobar') }}</button>
                 <button v-if="modulo.aprobacion && fila.estado_registro !== 'ANL' && puede('anular')" class="mr-2 text-amber-700 hover:underline" @click="anular(fila)">{{ etiqueta('anular', 'Anular') }}</button>
-                <button v-if="puede('editar') && !modulo.sinFormulario" class="mr-2 text-slate-600 hover:underline" @click="cambiarEstado(fila)">{{ fila.estado ? 'Dar de baja' : 'Dar de alta' }}</button>
-                <button v-if="puede('eliminar') && !modulo.sinFormulario" class="text-red-600 hover:underline" @click="eliminar(fila)">Eliminar</button>
+                <button v-if="puede('editar') && !modulo.sinFormulario && !modulo.sinEdicion" class="mr-2 text-slate-600 hover:underline" @click="cambiarEstado(fila)">{{ fila.estado ? 'Dar de baja' : 'Dar de alta' }}</button>
+                <button v-if="puede('eliminar') && !modulo.sinFormulario && !modulo.sinEliminar" class="text-red-600 hover:underline" @click="eliminar(fila)">Eliminar</button>
               </template>
             </td>
           </tr>
@@ -314,7 +356,7 @@ const tipoInput = (campo) => ({ email: 'email', fecha: 'date', fechahora: 'datet
         <section v-for="seccion in modulo.secciones" :key="seccion.titulo" class="mt-5">
           <h3 class="border-b border-slate-200 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ seccion.titulo }}</h3>
           <div class="mt-3 grid gap-4 sm:grid-cols-2">
-            <label v-for="campo in seccion.campos" :key="campo.clave" class="block text-sm" :class="campo.tipo === 'textarea' ? 'sm:col-span-2' : ''">
+            <label v-for="campo in seccion.campos.filter(visibleEn)" :key="campo.clave" class="block text-sm" :class="campo.tipo === 'textarea' ? 'sm:col-span-2' : ''">
               <span class="text-slate-600">{{ campo.etiqueta }}<span v-if="campo.requerido" class="text-red-600"> *</span></span>
 
               <select

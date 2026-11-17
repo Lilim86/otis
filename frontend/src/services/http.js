@@ -1,9 +1,23 @@
 import axios from 'axios'
 
-// Abre el frontend en http://127.0.0.1:5173 (no localhost) para que la cookie de
-// sesión se comparta con el backend en http://127.0.0.1:8000.
+const HOSTS_LOCALES = ['localhost', '127.0.0.1']
+
+// En desarrollo la API se llama con el mismo host con el que se abrió la página:
+// el navegador trata localhost y 127.0.0.1 como sitios distintos y, si no coinciden,
+// no envía la cookie de sesión (error "CSRF token mismatch").
+function urlDeLaApi() {
+  const url = new URL(import.meta.env?.VITE_API_URL ?? 'http://127.0.0.1:8000')
+  const hostDeLaPagina = window.location.hostname
+
+  if (HOSTS_LOCALES.includes(url.hostname) && HOSTS_LOCALES.includes(hostDeLaPagina)) {
+    url.hostname = hostDeLaPagina
+  }
+
+  return url.origin
+}
+
 export const http = axios.create({
-  baseURL: import.meta.env?.VITE_API_URL ?? 'http://127.0.0.1:8000',
+  baseURL: urlDeLaApi(),
   withCredentials: true,
   withXSRFToken: true,
   headers: {

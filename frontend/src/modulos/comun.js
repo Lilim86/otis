@@ -14,3 +14,6 @@ export const bs = (n) => (n == null || n === '' ? '—' : new Intl.NumberFormat(
 
 export const fecha = (v) => (v ? String(v).slice(0, 10).split('-').reverse().join('/') : '—')
 export const fechaHora = (v) => (v ? `${fecha(v)} ${String(v).slice(11, 16)}` : '—')
+
+/** Nombre de una persona como lo muestra el sistema: apellidos y nombres. */
+export const nombrePersona = (p) => [p?.primer_apellido, p?.segundo_apellido, p?.nombres].filter(Boolean).join(' ')

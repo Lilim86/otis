@@ -38,6 +38,14 @@ export const personal = crearServicioCrud('personal')
 export const empresas = conAprobacion('empresas')
 export const edificios = conAprobacion('edificios')
 export const contratos = conAprobacion('contratos')
+export const pedidosCatalogo = crearServicioCrud('pedidos-catalogo')
+
+/** Avisos al gerente de las citas que agenda Secretaría. */
+export const avisosAgenda = {
+  /** { total, data } */
+  listar: () => http.get('/api/citas/notificaciones').then((r) => r.data),
+  marcarVista: (id) => http.post(`/api/citas/${id}/visto`),
+}
 
 // Almacenes
 export const insumos = conAprobacion('insumos')
@@ -80,7 +88,10 @@ export const almacenes = {
   ...crearServicioCrud('almacenes'),
   inventario: (id) => http.get(`/api/almacenes/${id}/inventario`).then((r) => r.data.data),
 }
-export const movimientosAlmacen = conAprobacion('movimientos-almacen')
+export const movimientosAlmacen = {
+  ...conAprobacion('movimientos-almacen'),
+  herramientasEnPoder: () => http.get('/api/movimientos-almacen/herramientas-en-poder').then((r) => r.data.data),
+}
 export const compras = conAprobacion('compras')
 export const facturasProveedor = conAprobacion('facturas-proveedor')
 export const ordenesCancelacion = conAprobacion('ordenes-cancelacion')
@@ -108,6 +119,10 @@ export const visitasMantenimiento = {
   ...crearServicioCrud('visitas-mantenimiento'),
   /** Crea las visitas preventivas del contrato (una cada 30 días hábiles). */
   generarCronograma: (datos) => http.post('/api/visitas-mantenimiento/generar', datos).then((r) => r.data),
+  /** Tablero del cronograma: qué técnico está en qué visita y cuánta carga tiene. */
+  tablero: (params) => http.get('/api/visitas-mantenimiento/tablero', { params }).then((r) => r.data.data),
+  /** Reparte las visitas sin técnico entre quienes tienen menos carga. */
+  autoasignar: (params) => http.post('/api/visitas-mantenimiento/autoasignar', params).then((r) => r.data.data),
 }
 export const pagosClientes = {
   ...conAprobacion('pagos-clientes'),

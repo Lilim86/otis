@@ -1,4 +1,5 @@
 import { usuarios } from '@/services'
+import { nombrePersona } from './comun'
 
 export const seguridad = [
   {
@@ -23,6 +24,7 @@ export const seguridad = [
           { clave: 'roles', etiqueta: 'Rol', tipo: 'select', arreglo: true, remoto: { servicio: 'roles', texto: 'name', valor: 'name' } },
           { clave: 'empresa_id', etiqueta: 'Empresa (solo para rol Cliente)', tipo: 'select', remoto: { servicio: 'empresas', texto: 'denominacion' } },
           { clave: 'personal_id', etiqueta: 'Persona del personal (solo para técnicos)', tipo: 'select', remoto: { servicio: 'personal', texto: 'apellidos' } },
+          { clave: 'persona_id', etiqueta: 'Persona cobradora (solo para rol Cobrador)', tipo: 'select', remoto: { servicio: 'personas', texto: nombrePersona, params: { tipo_persona: 'COBRADOR' } } },
         ],
       },
     ],

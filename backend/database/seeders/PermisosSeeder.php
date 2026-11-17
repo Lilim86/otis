@@ -41,8 +41,8 @@ class PermisosSeeder extends Seeder
     {
         $areas = [
             'Planificación' => ['paises', 'departamentos', 'provincias', 'municipios', 'zonas', 'vias-acceso'],
-            'Comercial' => ['empresas', 'edificios', 'contratos', 'cuotas-contrato', 'cobranzas', 'personas'],
-            'Técnico' => ['visitas-mantenimiento', 'clasificadores-tecnicos', 'ascensores', 'equipos', 'mantenimientos', 'ordenes-mantenimiento', 'emergencias', 'repuestos', 'contratos-tecnicos'],
+            'Comercial' => ['empresas', 'edificios', 'contratos', 'cuotas-contrato', 'cobranzas', 'personas', 'pedidos-catalogo'],
+            'Técnico' => ['ingenieria', 'visitas-mantenimiento', 'clasificadores-tecnicos', 'ascensores', 'equipos', 'mantenimientos', 'ordenes-mantenimiento', 'emergencias', 'repuestos', 'contratos-tecnicos'],
             'Almacenes' => ['almacenes', 'insumos', 'grupos-bienes', 'movimientos-almacen', 'compras', 'facturas-proveedor'],
             'Financiero' => ['bancos', 'cuentas-bancarias', 'comprobantes', 'pagos-clientes', 'ingresos-tesoreria', 'traspasos-cuentas', 'ordenes-cancelacion', 'fondos-rendir', 'rendiciones-fondo', 'cobranzas'],
             'Recursos Humanos' => ['cargos', 'profesiones', 'personal', 'planillas'],
@@ -62,14 +62,17 @@ class PermisosSeeder extends Seeder
             'Cobrador' => [
                 'cobranzas.ver', 'cobranzas.crear', 'cobranzas.editar',
                 'contratos.ver', 'cuotas-contrato.ver', 'edificios.ver', 'empresas.ver', 'personas.ver',
-                'mantenimientos.ver', 'ordenes-mantenimiento.ver', 'cuentas-bancarias.ver', 'bancos.ver',
+                'mantenimientos.ver', 'ordenes-mantenimiento.ver', 'cuentas-bancarias.ver', 'bancos.ver', 'visitas-mantenimiento.ver',
             ],
             // Agenda del gerente general, registro de visitas, consultas y llamadas de emergencia.
             'Secretaría' => [
                 'citas.ver', 'citas.crear', 'citas.editar', 'citas.eliminar', 'citas.restaurar',
+                'pedidos-catalogo.ver', 'pedidos-catalogo.editar',
                 'personas.ver', 'personas.crear', 'personas.editar',
                 'empresas.ver', 'edificios.ver', 'contratos.ver', 'personal.ver',
                 'emergencias.ver', 'emergencias.crear', 'ordenes-mantenimiento.ver', 'mantenimientos.ver',
+                // Coordina con el técnico: ve el cronograma de visitas.
+                'visitas-mantenimiento.ver',
             ],
         ];
         // Cliente: solo entra a su portal. No ve ningún módulo interno.
